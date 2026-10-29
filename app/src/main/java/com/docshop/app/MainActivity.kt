@@ -123,6 +123,40 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    private val saveXlsxLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                isBusy = true
+                status = "جارٍ إنشاء ملف Excel..."
+                try {
+                    withContext(Dispatchers.IO) {
+                        val rows = extractedText.lineSequence().map { line ->
+                            if (line.contains('\t')) line.split('\t') else listOf(line)
+                        }.toList()
+                        val sheetRows = rows.mapIndexed { rowIndex, cells ->
+                            val xmlCells = cells.mapIndexed { colIndex, value ->
+                                val ref = excelColumnName(colIndex + 1) + (rowIndex + 1)
+                                """<c r="$ref" t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>"""
+                            }.joinToString("")
+                            """<row r="${rowIndex + 1}">$xmlCells</row>"""
+                        }.joinToString("")
+                        val sheetXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>$sheetRows</sheetData></worksheet>"""
+                        val output = contentResolver.openOutputStream(uri) ?: error("تعذر فتح ملف الحفظ")
+                        ZipOutputStream(output).use { zip ->
+                            writeZipText(zip, "[Content_Types].xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>""")
+                            writeZipText(zip, "_rels/.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>""")
+                            writeZipText(zip, "xl/workbook.xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="DocShop" sheetId="1" r:id="rId1"/></sheets></workbook>""")
+                            writeZipText(zip, "xl/_rels/workbook.xml.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>""")
+                            writeZipText(zip, "xl/worksheets/sheet1.xml", sheetXml)
+                        }
+                    }
+                    status = "تم إنشاء ملف XLSX. إذا كان المصدر PDF، فقد تحتاج الجداول إلى ترتيب يدوي لأن استخراج النص لا يحدد الأعمدة دائمًا."
+                } catch (e: Exception) {
+                    status = "فشل إنشاء Excel: ${e.localizedMessage ?: "خطأ غير معروف"}"
+                } finally { isBusy = false }
+            }
+        }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PDFBoxResourceLoader.init(applicationContext)
@@ -207,6 +241,11 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()) {
                             Text("تصدير البيانات إلى CSV")
                         }
+                        OutlinedButton(onClick = { saveXlsxLauncher.launch("DocShop-export.xlsx") },
+                            enabled = !isBusy && extractedText.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text("تصدير البيانات إلى Excel (XLSX)")
+                        }
 
                         OutlinedButton(onClick = {
                             selectedName = "لم يتم اختيار ملف"
@@ -234,6 +273,16 @@ class MainActivity : ComponentActivity() {
         .replace("\"", "&quot;")
         .replace("'", "&apos;")
 
+    private fun excelColumnName(number: Int): String {
+        var n = number
+        val result = StringBuilder()
+        while (n > 0) {
+            val remainder = (n - 1) % 26
+            result.insert(0, ('A'.code + remainder).toChar())
+            n = (n - 1) / 26
+        }
+        return result.toString()
+    }
     private fun writeZipText(zip: ZipOutputStream, name: String, value: String) {
         zip.putNextEntry(ZipEntry(name))
         zip.write(value.toByteArray(Charsets.UTF_8))
