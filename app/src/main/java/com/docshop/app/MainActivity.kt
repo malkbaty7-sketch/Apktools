@@ -489,6 +489,36 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
+                        if (extractedText.isNotEmpty()) {
+                            val wordCount = extractedText.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+                            val lineCount = extractedText.count { it == '\\n' } + 1
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("إحصائيات النص", style = MaterialTheme.typography.titleMedium)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("$wordCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                            Text("كلمة", style = MaterialTheme.typography.labelMedium)
+                                        }
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("${extractedText.length}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                            Text("حرف", style = MaterialTheme.typography.labelMedium)
+                                        }
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("$lineCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                            Text("سطر", style = MaterialTheme.typography.labelMedium)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         OutlinedTextField(
                             value = extractedText,
                             onValueChange = { extractedText = it },
