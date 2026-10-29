@@ -655,6 +655,23 @@ class MainActivity : ComponentActivity() {
                             Text("تصدير البيانات إلى Excel (XLSX)")
                         }
 
+                        OutlinedButton(
+                            onClick = {
+                                val cleaned = extractedText.replace(Regex("\\n{3,}"), "\\n\\n")
+                                val removed = extractedText.length - cleaned.length
+                                extractedText = cleaned
+                                status = if (removed > 0) {
+                                    "تم تقليل الأسطر الفارغة المتكررة وإزالة $removed محرفًا من الفراغات."
+                                } else {
+                                    "لا توجد أسطر فارغة متكررة تحتاج إلى تنظيف."
+                                }
+                            },
+                            enabled = !isBusy && extractedText.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("تنظيف الأسطر الفارغة المتكررة")
+                        }
+
                         OutlinedButton(onClick = {
                             extractedText = normalizeTableSpacing(extractedText)
                             status = "تم تحويل المسافات المتكررة إلى فواصل أعمدة. راجع الجدول قبل التصدير."
