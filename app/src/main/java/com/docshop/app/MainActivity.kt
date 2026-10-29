@@ -231,7 +231,7 @@ class MainActivity : ComponentActivity() {
         .replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
-        .replace("\\"", "&quot;")
+        .replace("\"", "&quot;")
         .replace("'", "&apos;")
 
     private fun writeZipText(zip: ZipOutputStream, name: String, value: String) {
