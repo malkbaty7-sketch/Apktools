@@ -33,6 +33,12 @@ jobs:
           mkdir -p app/src/main/res/mipmap-nodpi
           base64 --decode app/src/main/icon-source/docshop_icon.jpg.b64 > app/src/main/res/mipmap-nodpi/ic_launcher.jpg
 
+      - name: Reuse the same debug signing key between builds
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: docshop-debug-keystore-v1
+
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
 
