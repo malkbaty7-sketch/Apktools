@@ -120,6 +120,44 @@ class MainActivity : ComponentActivity() {
         }
 
 
+    private val saveHtmlLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/html")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                isBusy = true
+                status = "جارٍ إنشاء ملف HTML..."
+                try {
+                    withContext(Dispatchers.IO) {
+                        val escapedText = extractedText
+                            .replace("&", "&amp;")
+                            .replace("<", "&lt;")
+                            .replace(">", "&gt;")
+                            .replace("\"", "&quot;")
+                        val html = """<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeXml(selectedName)}</title>
+<style>
+body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; }
+.document-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>
+</head>
+<body><main class="document-text">${escapedText}</main></body>
+</html>"""
+                        contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use {
+                            it.write(html)
+                        } ?: error("تعذر فتح ملف الحفظ")
+                    }
+                    status = "تم تصدير النص إلى HTML. يمكنك فتحه في المتصفح أو مشاركته؛ لا يحتفظ بتنسيق المستند الأصلي."
+                } catch (e: Exception) {
+                    status = "فشل إنشاء HTML: ${e.localizedMessage ?: "خطأ غير معروف"}"
+                } finally {
+                    isBusy = false
+                }
+            }
+        }
+
     private val savePdfExportLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
             if (uri != null) lifecycleScope.launch {
@@ -684,6 +722,13 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()) {
                             Text("تصدير النص إلى PDF")
                         }
+
+                        OutlinedButton(onClick = { saveHtmlLauncher.launch("DocShop-export.html") },
+                            enabled = !isBusy && extractedText.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text("تصدير النص إلى HTML")
+                        }
+
 
                         OutlinedButton(onClick = { saveDocxLauncher.launch("DocShop-export.docx") },
                             enabled = !isBusy && extractedText.isNotEmpty(),
