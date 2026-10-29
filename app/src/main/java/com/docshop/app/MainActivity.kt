@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
     private var excelCellValue by mutableStateOf("")
     private var previousExcelText by mutableStateOf<String?>(null)
     private var previousTextEdit by mutableStateOf<String?>(null)
+    private var redoTextEdit by mutableStateOf<String?>(null)
     private var documentSearchQuery by mutableStateOf("")
     private var replaceSearchText by mutableStateOf("")
     private var replaceWithText by mutableStateOf("")
@@ -268,6 +269,7 @@ class MainActivity : ComponentActivity() {
                             TextButton(onClick = {
                                 extractedText = ""
                                 previousTextEdit = null
+                                redoTextEdit = null
                                 previousExcelText = null
                                 documentSearchQuery = ""
                                 replaceSearchText = ""
@@ -560,6 +562,7 @@ class MainActivity : ComponentActivity() {
                                                 replaceStatus = "لم يتم العثور على النص المطلوب."
                                             } else {
                                                 previousTextEdit = extractedText
+                                                redoTextEdit = null
                                                 extractedText = extractedText.replace(replaceSearchText, replaceWithText, ignoreCase = true)
                                                 replaceStatus = "تم استبدال $matches من النتائج."
                                                 replaceSearchText = ""
@@ -662,7 +665,7 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 val cleaned = extractedText.replace(Regex("\\n{3,}"), "\n\n")
                                 val removed = extractedText.length - cleaned.length
-                                if (removed > 0) previousTextEdit = extractedText
+                                if (removed > 0) { previousTextEdit = extractedText; redoTextEdit = null }
                                 extractedText = cleaned
                                 status = if (removed > 0) {
                                     "تم تقليل الأسطر الفارغة المتكررة وإزالة $removed محرفًا من الفراغات."
@@ -678,7 +681,7 @@ class MainActivity : ComponentActivity() {
 
                         OutlinedButton(onClick = {
                             val normalized = normalizeTableSpacing(extractedText)
-                            if (normalized != extractedText) previousTextEdit = extractedText
+                            if (normalized != extractedText) { previousTextEdit = extractedText; redoTextEdit = null }
                             extractedText = normalized
                             status = "تم تحويل المسافات المتكررة إلى فواصل أعمدة. راجع الجدول قبل التصدير."
                         }, enabled = !isBusy && extractedText.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
@@ -687,7 +690,7 @@ class MainActivity : ComponentActivity() {
 
                         OutlinedButton(onClick = {
                             val organized = extractPdfTableRows(extractedText)
-                            if (organized != extractedText) previousTextEdit = extractedText
+                            if (organized != extractedText) { previousTextEdit = extractedText; redoTextEdit = null }
                             extractedText = organized
                             status = "تم تنظيم أسطر الجدول إلى أعمدة مع الحفاظ على فواصل الأسطر الفعلية. راجع النتيجة قبل التصدير."
                         }, enabled = !isBusy && extractedText.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
@@ -705,15 +708,32 @@ class MainActivity : ComponentActivity() {
                             onClick = {
                                 val previous = previousTextEdit
                                 if (previous != null) {
+                                    redoTextEdit = extractedText
                                     previousTextEdit = null
                                     extractedText = previous
-                                    status = "تم التراجع عن آخر تعديل للنص. الملف الأصلي لم يتغير."
+                                    status = "تم التراجع عن آخر تعديل للنص. يمكنك إعادة تطبيقه من زر الإعادة."
                                 }
                             },
                             enabled = !isBusy && previousTextEdit != null,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("التراجع عن آخر تعديل للنص")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val redo = redoTextEdit
+                                if (redo != null) {
+                                    previousTextEdit = extractedText
+                                    redoTextEdit = null
+                                    extractedText = redo
+                                    status = "تمت إعادة تطبيق آخر تعديل للنص."
+                                }
+                            },
+                            enabled = !isBusy && redoTextEdit != null,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("إعادة تطبيق آخر تعديل للنص")
                         }
 
                         OutlinedButton(onClick = {
@@ -1012,6 +1032,7 @@ class MainActivity : ComponentActivity() {
                 }
                 extractedText = result
                 previousTextEdit = null
+                redoTextEdit = null
                 status = if (result.isBlank()) {
                     "لم يُعثر على نص. قد يكون الملف فارغًا أو يحتوي على صور فقط."
                 } else {
