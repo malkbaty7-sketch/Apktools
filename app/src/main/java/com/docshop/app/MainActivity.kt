@@ -296,7 +296,7 @@ class MainActivity : ComponentActivity() {
 
                         OutlinedButton(onClick = {
                             extractedText = extractPdfTableRows(extractedText)
-                            status = "تمت محاولة تنظيم أسطر الجدول إلى أعمدة. راجع النتيجة قبل التصدير."
+                            status = "تم تنظيم أسطر الجدول إلى أعمدة مع الحفاظ على فواصل الأسطر الفعلية. راجع النتيجة قبل التصدير."
                         }, enabled = !isBusy && extractedText.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
                             Text("تحسين تقسيم جداول PDF")
                         }
@@ -425,7 +425,7 @@ class MainActivity : ComponentActivity() {
         return text.lineSequence().map { rawLine ->
             val line = rawLine.trim()
             if (line.isEmpty()) "" else line.replace(Regex("\\s{2,}"), "\\t")
-        }.joinToString("\\n")
+        }.joinToString("\n")
     }
     private fun normalizeTableSpacing(text: String): String =
         text.lineSequence().joinToString("\n") { line ->
