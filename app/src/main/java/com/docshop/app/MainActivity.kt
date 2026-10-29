@@ -355,6 +355,57 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        if (selectedName.lowercase().endsWith(".xlsx")) {
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("معاينة جدول Excel", style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold)
+                                    Text("تعرض هذه المعاينة بيانات ورقة العمل الأولى كشبكة قابلة للتمرير. تحرير الخلايا داخل الشبكة غير متاح بعد؛ استخدم حقل النص أدناه لتعديل المحتوى المستخرج.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary)
+                                    val rows = extractedText.lineSequence()
+                                        .filter { it.isNotEmpty() }
+                                        .take(300)
+                                        .map { it.split('\t') }
+                                        .toList()
+                                    if (rows.isEmpty()) {
+                                        Text("لا توجد بيانات لعرضها في الجدول.")
+                                    } else {
+                                        Column(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)
+                                            .verticalScroll(rememberScrollState())) {
+                                            rows.forEachIndexed { rowIndex, cells ->
+                                                Row(modifier = Modifier.fillMaxWidth()
+                                                    .horizontalScroll(rememberScrollState())) {
+                                                    cells.forEachIndexed { columnIndex, cell ->
+                                                        Surface(
+                                                            modifier = Modifier.widthIn(min = 96.dp, max = 220.dp),
+                                                            color = if (rowIndex == 0) MaterialTheme.colorScheme.secondaryContainer
+                                                                else if (rowIndex % 2 == 0) MaterialTheme.colorScheme.surfaceVariant
+                                                                else MaterialTheme.colorScheme.surface,
+                                                            border = androidx.compose.foundation.BorderStroke(0.5.dp,
+                                                                MaterialTheme.colorScheme.outlineVariant)
+                                                        ) {
+                                                            Text(
+                                                                text = cell.ifBlank { " " },
+                                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                fontWeight = if (rowIndex == 0) FontWeight.SemiBold else FontWeight.Normal,
+                                                                maxLines = 4
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (extractedText.lineSequence().count() > 300) {
+                                            Text("تم عرض أول 300 صف فقط لتقليل استهلاك الذاكرة.",
+                                                style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
                             Text("المحتوى المستخرج", style = MaterialTheme.typography.titleLarge)
