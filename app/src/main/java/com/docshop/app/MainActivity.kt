@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
     private var editingExcelColumn by mutableIntStateOf(0)
     private var excelCellValue by mutableStateOf("")
     private var previousExcelText by mutableStateOf<String?>(null)
+    private var documentSearchQuery by mutableStateOf("")
     private var pdfPassword by mutableStateOf("")
     private var pendingPdfBytes: ByteArray? = null
     private var selectedPdfUri: Uri? = null
@@ -458,6 +459,31 @@ class MainActivity : ComponentActivity() {
                             verticalAlignment = Alignment.CenterVertically) {
                             Text("المحتوى المستخرج", style = MaterialTheme.typography.titleLarge)
                             Text("${extractedText.length} حرف", style = MaterialTheme.typography.labelMedium)
+                        }
+
+                        OutlinedTextField(
+                            value = documentSearchQuery,
+                            onValueChange = { documentSearchQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isBusy,
+                            singleLine = true,
+                            label = { Text("البحث داخل المستند") },
+                            placeholder = { Text("اكتب كلمة أو عبارة للبحث") },
+                            trailingIcon = {
+                                if (documentSearchQuery.isNotEmpty()) {
+                                    TextButton(onClick = { documentSearchQuery = "" }) { Text("مسح") }
+                                }
+                            }
+                        )
+                        if (documentSearchQuery.isNotBlank()) {
+                            val matchCount = Regex(Regex.escape(documentSearchQuery), RegexOption.IGNORE_CASE)
+                                .findAll(extractedText).count()
+                            Text(
+                                if (matchCount == 0) "لا توجد نتائج مطابقة."
+                                else "عدد النتائج: $matchCount",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
                         }
 
                         OutlinedTextField(
