@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
     private var pdfPageIndex by mutableIntStateOf(0)
     private var pdfZoom by mutableFloatStateOf(1f)
     private var pdfViewerStatus by mutableStateOf("")
+    private var draftSavedAt by mutableLongStateOf(0L)
     private val recentDocuments = mutableStateListOf<Pair<String, String>>()
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -297,6 +298,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
         super.onCreate(savedInstanceState)
         PDFBoxResourceLoader.init(applicationContext)
         loadRecentDocuments()
+        draftSavedAt = getSharedPreferences("docshop_text_draft", MODE_PRIVATE).getLong("saved_at", 0L)
 
         setContent {
             MaterialTheme {
@@ -309,6 +311,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             .putLong("saved_at", System.currentTimeMillis())
                             .putBoolean("auto_saved", true)
                             .apply()
+                        draftSavedAt = getSharedPreferences("docshop_text_draft", MODE_PRIVATE).getLong("saved_at", 0L)
                     }
                 }
                 if (showExcelCellDialog) {
@@ -729,15 +732,26 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             Text("حفظ النص كملف TXT")
                         }
 
+                        if (draftSavedAt > 0L) {
+                            Text(
+                                "آخر حفظ للمسودة: " + java.text.DateFormat.getDateTimeInstance().format(java.util.Date(draftSavedAt)),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
                         OutlinedButton(
                             onClick = {
                                 if (extractedText.length > 400000) {
                                     status = "المسودة كبيرة جدًا للحفظ داخل إعدادات التطبيق. صدّرها كملف TXT بدلًا من ذلك."
                                 } else {
-                                    getSharedPreferences("docshop_text_draft", MODE_PRIVATE).edit()
+                                    val draftPrefs = getSharedPreferences("docshop_text_draft", MODE_PRIVATE)
+                                    draftPrefs.edit()
                                         .putString("text", extractedText)
                                         .putString("name", selectedName)
+                                        .putLong("saved_at", System.currentTimeMillis())
+                                        .putBoolean("auto_saved", false)
                                         .apply()
+                                    draftSavedAt = draftPrefs.getLong("saved_at", 0L)
                                     status = "تم حفظ مسودة النص محليًا على الهاتف."
                                 }
                             },
