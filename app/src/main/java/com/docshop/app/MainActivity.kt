@@ -287,6 +287,13 @@ class MainActivity : ComponentActivity() {
                         }
 
                         OutlinedButton(onClick = {
+                            extractedText = extractPdfTableRows(extractedText)
+                            status = "تمت محاولة تنظيم أسطر الجدول إلى أعمدة. راجع النتيجة قبل التصدير."
+                        }, enabled = !isBusy && extractedText.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                            Text("تحسين تقسيم جداول PDF")
+                        }
+
+                        OutlinedButton(onClick = {
                             selectedName = "لم يتم اختيار ملف"
                             extractedText = ""
                             status = "تم إفراغ مساحة التحرير."
@@ -331,6 +338,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun extractPdfTableRows(text: String): String {
+        return text.lineSequence().map { rawLine ->
+            val line = rawLine.trim()
+            if (line.isEmpty()) "" else line.replace(Regex("\\s{2,}"), "\\t")
+        }.joinToString("\\n")
+    }
     private fun normalizeTableSpacing(text: String): String =
         text.lineSequence().joinToString("\n") { line ->
             line.trim().replace(Regex(" {2,}"), "\t")
