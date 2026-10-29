@@ -1,6 +1,8 @@
 package com.docshop.app
 
 import android.content.Intent
+import android.content.ClipboardManager
+import android.content.ClipData
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.database.Cursor
@@ -9,6 +11,7 @@ import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.util.Xml
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -516,6 +519,14 @@ class MainActivity : ComponentActivity() {
                             startActivity(Intent.createChooser(shareIntent, "مشاركة النص المستخرج"))
                         }, enabled = !isBusy && extractedText.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                             Text("مشاركة النص المستخرج")
+                        }
+
+                        OutlinedButton(onClick = {
+                            val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText(selectedName, extractedText))
+                            Toast.makeText(this@MainActivity, "تم نسخ النص إلى الحافظة", Toast.LENGTH_SHORT).show()
+                        }, enabled = !isBusy && extractedText.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                            Text("نسخ النص إلى الحافظة")
                         }
 
                         OutlinedButton(onClick = { saveCsvLauncher.launch("DocShop-export.csv") },
