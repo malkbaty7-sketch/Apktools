@@ -4,6 +4,9 @@ import android.content.Intent
 import android.content.ClipboardManager
 import android.content.ClipData
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.database.Cursor
 import android.net.Uri
@@ -116,6 +119,57 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+
+    private val savePdfExportLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                isBusy = true
+                status = "جارٍ إنشاء ملف PDF..."
+                try {
+                    withContext(Dispatchers.IO) {
+                        val document = PdfDocument()
+                        val pageWidth = 595
+                        val pageHeight = 842
+                        val margin = 40f
+                        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            textSize = 12f
+                            color = android.graphics.Color.BLACK
+                            textDirection = Paint.TEXT_DIRECTION_RTL
+                        }
+                        val wrappedLines = extractedText.lines().flatMap { line ->
+                            if (line.isEmpty()) listOf("") else line.chunked(78)
+                        }
+                        var pageNumber = 1
+                        var page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+                        var canvas: Canvas = page.canvas
+                        var y = margin + paint.textSize
+                        for (line in wrappedLines) {
+                            if (y > pageHeight - margin) {
+                                document.finishPage(page)
+                                pageNumber++
+                                page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+                                canvas = page.canvas
+                                y = margin + paint.textSize
+                            }
+                            canvas.drawText(line, pageWidth - margin, y, paint)
+                            y += paint.textSize * 1.6f
+                        }
+                        document.finishPage(page)
+                        try {
+                            val output = contentResolver.openOutputStream(uri) ?: error("تعذر فتح ملف الحفظ")
+                            output.use { document.writeTo(it) }
+                        } finally {
+                            document.close()
+                        }
+                    }
+                    status = "تم إنشاء ملف PDF. قد يختلف تنسيق النص عن المستند الأصلي."
+                } catch (e: Exception) {
+                    status = "فشل إنشاء PDF: ${e.localizedMessage ?: "خطأ غير معروف"}"
+                } finally {
+                    isBusy = false
+                }
+            }
+        }
 
     private val saveDocxLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.wordprocessingml.document")) { uri ->
@@ -624,6 +678,12 @@ class MainActivity : ComponentActivity() {
                             enabled = !isBusy && extractedText.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth()) {
                             Text("حفظ النص كملف TXT")
+                        }
+
+                        OutlinedButton(onClick = { savePdfExportLauncher.launch("DocShop-export.pdf") },
+                            enabled = !isBusy && extractedText.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text("تصدير النص إلى PDF")
                         }
 
                         OutlinedButton(onClick = { saveDocxLauncher.launch("DocShop-export.docx") },
