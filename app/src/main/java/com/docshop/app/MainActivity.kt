@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
                 status = "جارٍ إنشاء ملف Word..."
                 try {
                     withContext(Dispatchers.IO) {
-                        val paragraphs = extractedText.split("\n").joinToString("") { line ->
+                                            extractedText.split("\n").forEach { line ->
                             """<w:p><w:r><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>"""
                         }
                         val documentXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -335,13 +335,13 @@ class MainActivity : ComponentActivity() {
                                         Column(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)
                                             .verticalScroll(rememberScrollState()),
                                             verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            extractedText.split("\\n").forEach { line ->
+                                            extractedText.split("\n").forEach { line ->
                                                 if (line.isBlank()) {
                                                     Spacer(modifier = Modifier.height(4.dp))
-                                                } else if (line.contains('\\t')) {
+                                                } else if (line.contains('\t')) {
                                                     Card(colors = CardDefaults.cardColors(
                                                         containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                                                        Text(line.split('\\t').joinToString("   |   "),
+                                                        Text(line.split('\t').joinToString("   |   "),
                                                             modifier = Modifier.fillMaxWidth().padding(8.dp),
                                                             style = MaterialTheme.typography.bodyMedium)
                                                     }
