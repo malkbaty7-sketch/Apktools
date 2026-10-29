@@ -80,8 +80,8 @@ class MainActivity : ComponentActivity() {
                 status = "جارٍ إنشاء ملف Word..."
                 try {
                     withContext(Dispatchers.IO) {
-                        val paragraphs = extractedText.split("\\n").joinToString("") { line ->
-                            "<w:p><w:r><w:t xml:space=\\"preserve\\">\\${escapeXml(line)}</w:t></w:r></w:p>"
+                        val paragraphs = extractedText.split("\n").joinToString("") { line ->
+                            """<w:p><w:r><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>"""
                         }
                         val documentXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>$paragraphs<w:sectPr/></w:body></w:document>"""
@@ -106,9 +106,9 @@ class MainActivity : ComponentActivity() {
                 status = "جارٍ إنشاء ملف CSV..."
                 try {
                     withContext(Dispatchers.IO) {
-                        val csv = extractedText.lineSequence().joinToString("\\r\\n") { row ->
-                            row.split('\\t').joinToString(",") { cell ->
-                                "\\\"" + cell.replace("\\\"", "\\\"\\\"") + "\\\""
+                        val csv = extractedText.lineSequence().joinToString("\r\n") { row ->
+                            row.split('\t').joinToString(",") { cell ->
+                                "\"" + cell.replace("\"", "\"\"") + "\""
                             }
                         }
                         contentResolver.openOutputStream(uri)?.use { stream ->
