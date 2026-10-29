@@ -39,6 +39,14 @@ jobs:
           path: ~/.android/debug.keystore
           key: docshop-debug-keystore-v1
 
+      - name: Download Arabic OCR language data
+        run: |
+          mkdir -p app/src/main/assets/tessdata
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/ara.traineddata \
+            --output app/src/main/assets/tessdata/ara.traineddata
+          test -s app/src/main/assets/tessdata/ara.traineddata
+
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
 
