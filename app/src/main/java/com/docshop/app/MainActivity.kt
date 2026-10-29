@@ -29,6 +29,8 @@ import org.xmlpull.v1.XmlPullParser
 import java.io.ByteArrayInputStream
 import java.io.StringReader
 import java.util.zip.ZipInputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class MainActivity : ComponentActivity() {
     private var selectedName by mutableStateOf("لم يتم اختيار ملف")
@@ -67,6 +69,57 @@ class MainActivity : ComponentActivity() {
                         isBusy = false
                     }
                 }
+            }
+        }
+
+
+    private val saveDocxLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.wordprocessingml.document")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                isBusy = true
+                status = "جارٍ إنشاء ملف Word..."
+                try {
+                    withContext(Dispatchers.IO) {
+                        val paragraphs = extractedText.split("\\n").joinToString("") { line ->
+                            "<w:p><w:r><w:t xml:space=\\"preserve\\">\\${escapeXml(line)}</w:t></w:r></w:p>"
+                        }
+                        val documentXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>$paragraphs<w:sectPr/></w:body></w:document>"""
+                        val output = contentResolver.openOutputStream(uri) ?: error("تعذر فتح ملف الحفظ")
+                        ZipOutputStream(output).use { zip ->
+                            writeZipText(zip, "[Content_Types].xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>""")
+                            writeZipText(zip, "_rels/.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>""")
+                            writeZipText(zip, "word/document.xml", documentXml)
+                        }
+                    }
+                    status = "تم إنشاء ملف Word. هذا تصدير للنص ولا يحافظ على تنسيق المصدر الأصلي."
+                } catch (e: Exception) {
+                    status = "فشل إنشاء Word: ${e.localizedMessage ?: "خطأ غير معروف"}"
+                } finally { isBusy = false }
+            }
+        }
+
+    private val saveCsvLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                isBusy = true
+                status = "جارٍ إنشاء ملف CSV..."
+                try {
+                    withContext(Dispatchers.IO) {
+                        val csv = extractedText.lineSequence().joinToString("\\r\\n") { row ->
+                            row.split('\\t').joinToString(",") { cell ->
+                                "\\\"" + cell.replace("\\\"", "\\\"\\\"") + "\\\""
+                            }
+                        }
+                        contentResolver.openOutputStream(uri)?.use { stream ->
+                            stream.write(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()))
+                            stream.write(csv.toByteArray(Charsets.UTF_8))
+                        } ?: error("تعذر فتح ملف الحفظ")
+                    }
+                    status = "تم إنشاء ملف CSV بترميز UTF-8."
+                } catch (e: Exception) {
+                    status = "فشل إنشاء CSV: ${e.localizedMessage ?: "خطأ غير معروف"}"
+                } finally { isBusy = false }
             }
         }
 
@@ -143,6 +196,18 @@ class MainActivity : ComponentActivity() {
                             Text("حفظ النص كملف TXT")
                         }
 
+                        OutlinedButton(onClick = { saveDocxLauncher.launch("DocShop-export.docx") },
+                            enabled = !isBusy && extractedText.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text("تصدير النص إلى Word (DOCX)")
+                        }
+
+                        OutlinedButton(onClick = { saveCsvLauncher.launch("DocShop-export.csv") },
+                            enabled = !isBusy && extractedText.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text("تصدير البيانات إلى CSV")
+                        }
+
                         OutlinedButton(onClick = {
                             selectedName = "لم يتم اختيار ملف"
                             extractedText = ""
@@ -160,6 +225,19 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private fun escapeXml(value: String): String = value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\\"", "&quot;")
+        .replace("'", "&apos;")
+
+    private fun writeZipText(zip: ZipOutputStream, name: String, value: String) {
+        zip.putNextEntry(ZipEntry(name))
+        zip.write(value.toByteArray(Charsets.UTF_8))
+        zip.closeEntry()
     }
 
     private fun queryDisplayName(uri: Uri): String? {
