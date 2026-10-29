@@ -717,6 +717,48 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             Text("حفظ النص كملف TXT")
                         }
 
+                        OutlinedButton(
+                            onClick = {
+                                if (extractedText.length > 400000) {
+                                    status = "المسودة كبيرة جدًا للحفظ داخل إعدادات التطبيق. صدّرها كملف TXT بدلًا من ذلك."
+                                } else {
+                                    getSharedPreferences("docshop_text_draft", MODE_PRIVATE).edit()
+                                        .putString("text", extractedText)
+                                        .putString("name", selectedName)
+                                        .apply()
+                                    status = "تم حفظ مسودة النص محليًا على الهاتف."
+                                }
+                            },
+                            enabled = !isBusy && extractedText.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("حفظ مسودة النص على الهاتف")
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                if (extractedText.isNotBlank()) {
+                                    status = "لحماية النص الحالي، امسح المحتوى المستخرج أولًا ثم استعد المسودة."
+                                } else {
+                                    val draftPrefs = getSharedPreferences("docshop_text_draft", MODE_PRIVATE)
+                                    val draft = draftPrefs.getString("text", null)
+                                    if (draft == null) {
+                                        status = "لا توجد مسودة محفوظة على هذا الهاتف."
+                                    } else {
+                                        extractedText = draft
+                                        selectedName = draftPrefs.getString("name", "مسودة محفوظة") ?: "مسودة محفوظة"
+                                        previousTextEdit = null
+                                        redoTextEdit = null
+                                        status = "تمت استعادة المسودة المحفوظة محليًا."
+                                    }
+                                }
+                            },
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("استعادة المسودة المحفوظة")
+                        }
+
                         OutlinedButton(onClick = { savePdfExportLauncher.launch("DocShop-export.pdf") },
                             enabled = !isBusy && extractedText.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth()) {
