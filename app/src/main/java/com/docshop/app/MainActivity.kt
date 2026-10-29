@@ -320,7 +320,6 @@ class MainActivity : ComponentActivity() {
             try {
                 val text = withContext(Dispatchers.IO) { extractPdfText(bytes, password) }
                 extractedText = text
-                selectedName = selectedName
                 status = if (text.isBlank()) "تم فتح الملف لكن لم يُعثر على نص قابل للاستخراج." else "تم فتح ملف PDF بنجاح."
                 pendingPdfBytes = null
                 pdfPassword = ""
@@ -333,7 +332,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun normalizeTableSpacing(text: String): String =
-        text.lineSequence().joinToString("\\n") { line ->
+        text.lineSequence().joinToString("\n") { line ->
             line.trim().replace(Regex(" {2,}"), "\\t")
         }
 
