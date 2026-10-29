@@ -12,8 +12,12 @@ import android.util.Xml
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -47,6 +51,11 @@ class MainActivity : ComponentActivity() {
     private var pdfPassword by mutableStateOf("")
     private var pendingPdfBytes: ByteArray? = null
     private var selectedPdfUri: Uri? = null
+    private var pdfPageBitmap by mutableStateOf<Bitmap?>(null)
+    private var pdfPageCount by mutableIntStateOf(0)
+    private var pdfPageIndex by mutableIntStateOf(0)
+    private var pdfZoom by mutableFloatStateOf(1f)
+    private var pdfViewerStatus by mutableStateOf("")
     private val recentDocuments = mutableStateListOf<Pair<String, String>>()
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -60,6 +69,11 @@ class MainActivity : ComponentActivity() {
             selectedPdfUri = if (selectedName.lowercase().endsWith(".pdf") || contentResolver.getType(uri).equals("application/pdf", true)) uri else null
             rememberRecentDocument(uri, selectedName)
             readDocument(uri)
+            if (selectedPdfUri != null) loadPdfPage(uri, 0) else {
+                pdfPageBitmap = null
+                pdfPageCount = 0
+                pdfViewerStatus = ""
+            }
         }
     }
 
@@ -272,6 +286,41 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        if (selectedPdfUri != null) {
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("عارض PDF", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                    Text(pdfViewerStatus.ifBlank { "تحميل صفحات PDF..." }, style = MaterialTheme.typography.bodyMedium)
+                                    if (pdfPageBitmap != null) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically) {
+                                            TextButton(onClick = { if (pdfPageIndex > 0) selectedPdfUri?.let { loadPdfPage(it, pdfPageIndex - 1) } },
+                                                enabled = !isBusy && pdfPageIndex > 0) { Text("السابق") }
+                                            Text("صفحة ${pdfPageIndex + 1} من $pdfPageCount")
+                                            TextButton(onClick = { if (pdfPageIndex + 1 < pdfPageCount) selectedPdfUri?.let { loadPdfPage(it, pdfPageIndex + 1) } },
+                                                enabled = !isBusy && pdfPageIndex + 1 < pdfPageCount) { Text("التالي") }
+                                        }
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically) {
+                                            TextButton(onClick = { pdfZoom = (pdfZoom - 0.2f).coerceAtLeast(0.6f) }) { Text("−") }
+                                            Text("التكبير: ${(pdfZoom * 100).toInt()}%")
+                                            TextButton(onClick = { pdfZoom = (pdfZoom + 0.2f).coerceAtMost(2.5f) }) { Text("+") }
+                                            TextButton(onClick = { pdfZoom = 1f }) { Text("إعادة") }
+                                        }
+                                        Box(modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp, max = 620.dp)
+                                            .verticalScroll(rememberScrollState())) {
+                                            Image(bitmap = pdfPageBitmap!!.asImageBitmap(),
+                                                contentDescription = "صفحة PDF رقم ${pdfPageIndex + 1}",
+                                                contentScale = ContentScale.FillWidth,
+                                                modifier = Modifier.fillMaxWidth().graphicsLayer(
+                                                    scaleX = pdfZoom, scaleY = pdfZoom
+                                                ))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
                             Text("المحتوى المستخرج", style = MaterialTheme.typography.titleLarge)
@@ -477,6 +526,46 @@ class MainActivity : ComponentActivity() {
         zip.putNextEntry(ZipEntry(name))
         zip.write(value.toByteArray(Charsets.UTF_8))
         zip.closeEntry()
+    }
+
+    private fun loadPdfPage(uri: Uri, pageIndex: Int) {
+        lifecycleScope.launch {
+            pdfViewerStatus = "جارٍ تحميل الصفحة..."
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val file = File(cacheDir, "docshop-viewer.pdf")
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(file).use { output -> input.copyTo(output) }
+                    } ?: error("تعذر قراءة ملف PDF")
+                    try {
+                        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+                            PdfRenderer(descriptor).use { renderer ->
+                                if (renderer.pageCount == 0) error("ملف PDF لا يحتوي على صفحات")
+                                val safeIndex = pageIndex.coerceIn(0, renderer.pageCount - 1)
+                                renderer.openPage(safeIndex).use { page ->
+                                    val width = 1400
+                                    val height = (width.toFloat() * page.height / page.width).toInt().coerceAtLeast(1)
+                                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                                    bitmap.eraseColor(android.graphics.Color.WHITE)
+                                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                    Triple(bitmap, renderer.pageCount, safeIndex)
+                                }
+                            }
+                        }
+                    } finally {
+                        file.delete()
+                    }
+                }
+                pdfPageBitmap = result.first
+                pdfPageCount = result.second
+                pdfPageIndex = result.third
+                pdfZoom = 1f
+                pdfViewerStatus = "تم تحميل صفحة PDF."
+            } catch (e: Exception) {
+                pdfPageBitmap = null
+                pdfViewerStatus = "تعذر عرض الصفحات. قد يكون الملف محميًا أو غير صالح للعرض."
+            }
+        }
     }
 
     private fun rememberRecentDocument(uri: Uri, name: String) {
