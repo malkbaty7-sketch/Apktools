@@ -59,6 +59,9 @@ class MainActivity : ComponentActivity() {
     private var excelCellValue by mutableStateOf("")
     private var previousExcelText by mutableStateOf<String?>(null)
     private var documentSearchQuery by mutableStateOf("")
+    private var replaceSearchText by mutableStateOf("")
+    private var replaceWithText by mutableStateOf("")
+    private var replaceStatus by mutableStateOf("")
     private var pdfPassword by mutableStateOf("")
     private var pendingPdfBytes: ByteArray? = null
     private var selectedPdfUri: Uri? = null
@@ -487,6 +490,55 @@ class MainActivity : ComponentActivity() {
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.secondary
                             )
+                        }
+
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("بحث واستبدال النص", style = MaterialTheme.typography.titleMedium)
+                                OutlinedTextField(
+                                    value = replaceSearchText,
+                                    onValueChange = { replaceSearchText = it; replaceStatus = "" },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !isBusy,
+                                    singleLine = true,
+                                    label = { Text("النص المراد استبداله") }
+                                )
+                                OutlinedTextField(
+                                    value = replaceWithText,
+                                    onValueChange = { replaceWithText = it; replaceStatus = "" },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !isBusy,
+                                    singleLine = true,
+                                    label = { Text("النص البديل") }
+                                )
+                                Button(
+                                    onClick = {
+                                        if (replaceSearchText.isBlank()) {
+                                            replaceStatus = "اكتب النص الذي تريد استبداله أولاً."
+                                        } else {
+                                            val matches = Regex(Regex.escape(replaceSearchText), RegexOption.IGNORE_CASE)
+                                                .findAll(extractedText).count()
+                                            if (matches == 0) {
+                                                replaceStatus = "لم يتم العثور على النص المطلوب."
+                                            } else {
+                                                extractedText = extractedText.replace(replaceSearchText, replaceWithText, ignoreCase = true)
+                                                replaceStatus = "تم استبدال $matches من النتائج."
+                                                replaceSearchText = ""
+                                            }
+                                        }
+                                    },
+                                    enabled = !isBusy && extractedText.isNotEmpty(),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("استبدال جميع النتائج")
+                                }
+                                if (replaceStatus.isNotBlank()) {
+                                    Text(replaceStatus, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
+                                }
+                            }
                         }
 
                         if (extractedText.isNotEmpty()) {
