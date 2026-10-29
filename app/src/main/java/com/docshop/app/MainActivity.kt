@@ -321,6 +321,40 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        if (selectedName.lowercase().endsWith(".docx")) {
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("معاينة مستند Word", style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold)
+                                    Text("هذه معاينة للنص والفقرات والجداول المستخرجة. لا تُعرض تنسيقات Word الأصلية بالكامل بعد.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary)
+                                    if (extractedText.isBlank()) {
+                                        Text("لا يوجد نص قابل للمعاينة في المستند.")
+                                    } else {
+                                        Column(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)
+                                            .verticalScroll(rememberScrollState()),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            extractedText.split("\\n").forEach { line ->
+                                                if (line.isBlank()) {
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                } else if (line.contains('\\t')) {
+                                                    Card(colors = CardDefaults.cardColors(
+                                                        containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                                                        Text(line.split('\\t').joinToString("   |   "),
+                                                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                                                            style = MaterialTheme.typography.bodyMedium)
+                                                    }
+                                                } else {
+                                                    Text(line, style = MaterialTheme.typography.bodyLarge)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
                             Text("المحتوى المستخرج", style = MaterialTheme.typography.titleLarge)
