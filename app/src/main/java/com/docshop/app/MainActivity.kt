@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
     private var editingExcelRow by mutableIntStateOf(0)
     private var editingExcelColumn by mutableIntStateOf(0)
     private var excelCellValue by mutableStateOf("")
+    private var previousExcelText by mutableStateOf<String?>(null)
     private var pdfPassword by mutableStateOf("")
     private var pendingPdfBytes: ByteArray? = null
     private var selectedPdfUri: Uri? = null
@@ -392,6 +393,19 @@ class MainActivity : ComponentActivity() {
                                     Text("اضغط على أي خلية لتعديل قيمتها. التغييرات تطبق على البيانات المستخرجة ويمكن تصديرها كملف جديد؛ لا يتغير الملف الأصلي.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.secondary)
+                                    OutlinedButton(
+                                        onClick = {
+                                            previousExcelText?.let { oldText ->
+                                                extractedText = oldText
+                                                previousExcelText = null
+                                                status = "تم التراجع عن آخر تعديل للجدول."
+                                            }
+                                        },
+                                        enabled = !isBusy && previousExcelText != null,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("التراجع عن آخر تعديل")
+                                    }
                                     val rows = extractedText.lineSequence()
                                         .take(300)
                                         .map { it.split('\t') }
@@ -620,6 +634,7 @@ class MainActivity : ComponentActivity() {
         }.joinToString("\n")
     }
     private fun updateExcelCell(rowIndex: Int, columnIndex: Int, value: String) {
+        previousExcelText = extractedText
         val rows = extractedText.split('\n').toMutableList()
         while (rows.size <= rowIndex) rows.add("")
         val cells = rows[rowIndex].split('\t').toMutableList()
