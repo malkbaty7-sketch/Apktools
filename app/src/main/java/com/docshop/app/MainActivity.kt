@@ -86,12 +86,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun saveText() {
-        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "text/plain"
-            putExtra(Intent.EXTRA_TITLE, "DocShop-export.txt")
-        }
-        saveTextLauncher.launch(intent)
+        saveTextLauncher.launch("DocShop-export.txt")
     }
 
     private val saveTextLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
