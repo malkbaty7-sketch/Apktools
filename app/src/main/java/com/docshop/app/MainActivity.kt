@@ -380,13 +380,13 @@ class MainActivity : ComponentActivity() {
                                 bitmap.eraseColor(android.graphics.Color.WHITE)
                                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
                                 api.setImage(bitmap)
-                                pages.add(api.utF8Text.orEmpty().trim())
+                                pages.add(api.getUTF8Text().orEmpty().trim())
                             } finally {
                                 bitmap.recycle()
                             }
                         }
                     }
-                    return pages.filter { it.isNotBlank() }.joinToString("\\n\\n")
+                    return pages.filter { it.isNotBlank() }.joinToString("\n\n")
                 }
             }
         } finally {
