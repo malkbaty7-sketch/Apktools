@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
     private var status by mutableStateOf("اختر PDF أو Word أو Excel أو TXT للبدء.")
     private var isBusy by mutableStateOf(false)
     private var showPasswordDialog by mutableStateOf(false)
+    private var showClearTextDialog by mutableStateOf(false)
     private var showExcelCellDialog by mutableStateOf(false)
     private var editingExcelRow by mutableIntStateOf(0)
     private var editingExcelColumn by mutableIntStateOf(0)
@@ -257,6 +258,28 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
+                if (showClearTextDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showClearTextDialog = false },
+                        title = { Text("مسح المحتوى المستخرج؟") },
+                        text = { Text("سيتم مسح النص من مساحة العمل الحالية فقط. لن يتم حذف الملف الأصلي من الهاتف، ولن يمكن التراجع عن هذا المسح.") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                extractedText = ""
+                                previousExcelText = null
+                                documentSearchQuery = ""
+                                replaceSearchText = ""
+                                replaceWithText = ""
+                                replaceStatus = ""
+                                status = "تم مسح المحتوى المستخرج من مساحة العمل. الملف الأصلي لم يتغير."
+                                showClearTextDialog = false
+                            }) { Text("مسح المحتوى") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showClearTextDialog = false }) { Text("إلغاء") }
+                        }
+                    )
+                }
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Column(
                         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -458,6 +481,16 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+                            }
+                        }
+
+                        if (extractedText.isNotEmpty()) {
+                            OutlinedButton(
+                                onClick = { showClearTextDialog = true },
+                                enabled = !isBusy,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("مسح المحتوى المستخرج")
                             }
                         }
 
