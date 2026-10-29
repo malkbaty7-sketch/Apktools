@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
     private var isBusy by mutableStateOf(false)
     private var showPasswordDialog by mutableStateOf(false)
     private var showClearTextDialog by mutableStateOf(false)
+    private var showDeleteDraftDialog by mutableStateOf(false)
     private var showExcelCellDialog by mutableStateOf(false)
     private var editingExcelRow by mutableIntStateOf(0)
     private var editingExcelColumn by mutableIntStateOf(0)
@@ -366,8 +367,30 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                         }
                     )
                 }
-                if (showClearTextDialog) {
+                if (showDeleteDraftDialog) {
                     AlertDialog(
+                        onDismissRequest = { showDeleteDraftDialog = false },
+                        title = { Text("حذف المسودة المحفوظة؟") },
+                        text = { Text("سيتم حذف المسودة المخزنة محليًا ووقت حفظها فقط. لن يتم حذف النص الموجود حاليًا في مساحة العمل أو أي ملف أصلي من الهاتف.") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                getSharedPreferences("docshop_text_draft", MODE_PRIVATE).edit()
+                                    .remove("text")
+                                    .remove("name")
+                                    .remove("saved_at")
+                                    .remove("auto_saved")
+                                    .apply()
+                                draftSavedAt = 0L
+                                status = "تم حذف المسودة المحفوظة من مساحة التطبيق. المحتوى الحالي والملفات الأصلية لم تتغير."
+                                showDeleteDraftDialog = false
+                            }) { Text("حذف المسودة") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteDraftDialog = false }) { Text("إلغاء") }
+                        }
+                    )
+                }
+                if (showClearTextDialog) {
                         onDismissRequest = { showClearTextDialog = false },
                         title = { Text("مسح المحتوى المستخرج؟") },
                         text = { Text("سيتم مسح النص من مساحة العمل الحالية فقط. لن يتم حذف الملف الأصلي من الهاتف، ولن يمكن التراجع عن هذا المسح.") },
@@ -783,6 +806,14 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("استعادة المسودة المحفوظة")
+                        }
+
+                        OutlinedButton(
+                            onClick = { showDeleteDraftDialog = true },
+                            enabled = !isBusy && draftSavedAt > 0L,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("حذف المسودة المحفوظة")
                         }
 
                         OutlinedButton(onClick = { savePdfExportLauncher.launch("DocShop-export.pdf") },
