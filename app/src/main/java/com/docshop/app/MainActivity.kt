@@ -1,9 +1,12 @@
 package com.docshop.app
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.util.Xml
 import androidx.activity.ComponentActivity
@@ -27,10 +30,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.io.StringReader
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import com.googlecode.tesseract.android.TessBaseAPI
 
 class MainActivity : ComponentActivity() {
     private var selectedName by mutableStateOf("لم يتم اختيار ملف")
@@ -40,6 +46,7 @@ class MainActivity : ComponentActivity() {
     private var showPasswordDialog by mutableStateOf(false)
     private var pdfPassword by mutableStateOf("")
     private var pendingPdfBytes: ByteArray? = null
+    private var selectedPdfUri: Uri? = null
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -49,6 +56,7 @@ class MainActivity : ComponentActivity() {
                 // Some providers do not support persistable URI permissions.
             }
             selectedName = queryDisplayName(uri) ?: uri.lastPathSegment ?: "document"
+            selectedPdfUri = if (selectedName.lowercase().endsWith(".pdf") || contentResolver.getType(uri).equals("application/pdf", true)) uri else null
             readDocument(uri)
         }
     }
@@ -294,6 +302,13 @@ class MainActivity : ComponentActivity() {
                         }
 
                         OutlinedButton(onClick = {
+                            val pdfUri = selectedPdfUri
+                            if (pdfUri != null) runArabicOcr(pdfUri)
+                        }, enabled = !isBusy && selectedPdfUri != null, modifier = Modifier.fillMaxWidth()) {
+                            Text("استخراج النص العربي من PDF المصوّر (OCR)")
+                        }
+
+                        OutlinedButton(onClick = {
                             selectedName = "لم يتم اختيار ملف"
                             extractedText = ""
                             status = "تم إفراغ مساحة التحرير."
@@ -302,13 +317,81 @@ class MainActivity : ComponentActivity() {
                         }
 
                         Text(
-                            "تنبيه: هذه المرحلة تستخرج النص ولا تحافظ على تصميم المستند الأصلي. ملفات DOC القديمة وXLS القديمة وملفات Access غير مدعومة بعد. PDF المصوّر يحتاج إلى OCR، وPDF المحمي بكلمة مرور قد يتعذر فتحه.",
+                            "تنبيه: OCR يستخرج النص من صفحات PDF المصوّرة ولا يحافظ على تخطيط الصفحة أو الجداول بدقة مضمونة. ملفات DOC القديمة وXLS القديمة وAccess غير مدعومة بعد.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
+        }
+    }
+
+    private fun runArabicOcr(uri: Uri) {
+        lifecycleScope.launch {
+            isBusy = true
+            status = "جارٍ تجهيز OCR العربي..."
+            try {
+                val text = withContext(Dispatchers.IO) { extractArabicOcr(uri) }
+                extractedText = text
+                status = if (text.isBlank()) {
+                    "اكتمل OCR لكن لم يتم التعرف على نص واضح. جرّب PDF أوضح."
+                } else {
+                    "اكتمل OCR العربي. راجع النص، خصوصًا الأرقام والتشكيل والجداول، قبل التصدير."
+                }
+            } catch (e: Exception) {
+                status = "تعذر تنفيذ OCR: ${e.localizedMessage ?: "تحقق من أن ملف اللغة العربية مضمن في الإصدار."}"
+            } finally {
+                isBusy = false
+            }
+        }
+    }
+
+    private fun extractArabicOcr(uri: Uri): String {
+        val pdfFile = File(cacheDir, "docshop-ocr-input.pdf")
+        contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(pdfFile).use { output -> input.copyTo(output) }
+        } ?: error("تعذر قراءة ملف PDF")
+        val tessDataDir = File(filesDir, "tessdata")
+        if (!tessDataDir.exists()) tessDataDir.mkdirs()
+        val trainedData = File(tessDataDir, "ara.traineddata")
+        if (!trainedData.exists()) {
+            assets.open("tessdata/ara.traineddata").use { input ->
+                FileOutputStream(trainedData).use { output -> input.copyTo(output) }
+            }
+        }
+
+        val api = TessBaseAPI()
+        if (!api.init(filesDir.absolutePath, "ara", TessBaseAPI.OEM_LSTM_ONLY)) {
+            api.end()
+            error("تعذر تهيئة محرك OCR العربي")
+        }
+        try {
+            ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+                PdfRenderer(descriptor).use { renderer ->
+                    val pages = mutableListOf<String>()
+                    for (index in 0 until renderer.pageCount) {
+                        renderer.openPage(index).use { page ->
+                            val targetWidth = 1600
+                            val scale = targetWidth.toFloat() / page.width.toFloat()
+                            val targetHeight = (page.height * scale).toInt().coerceAtLeast(1)
+                            val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                            try {
+                                bitmap.eraseColor(android.graphics.Color.WHITE)
+                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                                api.setImage(bitmap)
+                                pages.add(api.utF8Text.orEmpty().trim())
+                            } finally {
+                                bitmap.recycle()
+                            }
+                        }
+                    }
+                    return pages.filter { it.isNotBlank() }.joinToString("\\n\\n")
+                }
+            }
+        } finally {
+            api.end()
+            pdfFile.delete()
         }
     }
 
