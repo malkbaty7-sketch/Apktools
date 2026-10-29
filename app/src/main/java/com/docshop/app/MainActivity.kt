@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -49,6 +50,10 @@ class MainActivity : ComponentActivity() {
     private var status by mutableStateOf("اختر PDF أو Word أو Excel أو TXT للبدء.")
     private var isBusy by mutableStateOf(false)
     private var showPasswordDialog by mutableStateOf(false)
+    private var showExcelCellDialog by mutableStateOf(false)
+    private var editingExcelRow by mutableIntStateOf(0)
+    private var editingExcelColumn by mutableIntStateOf(0)
+    private var excelCellValue by mutableStateOf("")
     private var pdfPassword by mutableStateOf("")
     private var pendingPdfBytes: ByteArray? = null
     private var selectedPdfUri: Uri? = null
@@ -192,6 +197,29 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
+                if (showExcelCellDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showExcelCellDialog = false },
+                        title = { Text("تعديل خلية Excel") },
+                        text = {
+                            OutlinedTextField(
+                                value = excelCellValue,
+                                onValueChange = { excelCellValue = it },
+                                label = { Text("قيمة الخلية") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                updateExcelCell(editingExcelRow, editingExcelColumn, excelCellValue)
+                                showExcelCellDialog = false
+                            }) { Text("حفظ التعديل") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showExcelCellDialog = false }) { Text("إلغاء") }
+                        }
+                    )
+                }
                 if (showPasswordDialog) {
                     AlertDialog(
                         onDismissRequest = { showPasswordDialog = false; pdfPassword = "" },
@@ -361,11 +389,10 @@ class MainActivity : ComponentActivity() {
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("معاينة جدول Excel", style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold)
-                                    Text("تعرض هذه المعاينة بيانات ورقة العمل الأولى كشبكة قابلة للتمرير. تحرير الخلايا داخل الشبكة غير متاح بعد؛ استخدم حقل النص أدناه لتعديل المحتوى المستخرج.",
+                                    Text("اضغط على أي خلية لتعديل قيمتها. التغييرات تطبق على البيانات المستخرجة ويمكن تصديرها كملف جديد؛ لا يتغير الملف الأصلي.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.secondary)
                                     val rows = extractedText.lineSequence()
-                                        .filter { it.isNotEmpty() }
                                         .take(300)
                                         .map { it.split('\t') }
                                         .toList()
@@ -379,7 +406,13 @@ class MainActivity : ComponentActivity() {
                                                     .horizontalScroll(rememberScrollState())) {
                                                     cells.forEachIndexed { columnIndex, cell ->
                                                         Surface(
-                                                            modifier = Modifier.widthIn(min = 96.dp, max = 220.dp),
+                                                            modifier = Modifier.widthIn(min = 96.dp, max = 220.dp)
+                                                                .clickable {
+                                                                    editingExcelRow = rowIndex
+                                                                    editingExcelColumn = columnIndex
+                                                                    excelCellValue = cell
+                                                                    showExcelCellDialog = true
+                                                                },
                                                             color = if (rowIndex == 0) MaterialTheme.colorScheme.secondaryContainer
                                                                 else if (rowIndex % 2 == 0) MaterialTheme.colorScheme.surfaceVariant
                                                                 else MaterialTheme.colorScheme.surface,
@@ -585,6 +618,16 @@ class MainActivity : ComponentActivity() {
             val line = rawLine.trim()
             if (line.isEmpty()) "" else line.replace(Regex("\\s{2,}"), "\\t")
         }.joinToString("\n")
+    }
+    private fun updateExcelCell(rowIndex: Int, columnIndex: Int, value: String) {
+        val rows = extractedText.split('\n').toMutableList()
+        while (rows.size <= rowIndex) rows.add("")
+        val cells = rows[rowIndex].split('\t').toMutableList()
+        while (cells.size <= columnIndex) cells.add("")
+        cells[columnIndex] = value
+        rows[rowIndex] = cells.joinToString("\t")
+        extractedText = rows.joinToString("\n")
+        status = "تم تعديل الخلية في المحتوى المستخرج. صدّر الملف لحفظ نسخة جديدة."
     }
     private fun normalizeTableSpacing(text: String): String =
         text.lineSequence().joinToString("\n") { line ->
