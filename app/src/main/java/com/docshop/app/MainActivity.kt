@@ -507,6 +507,16 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()) {
                             Text("تصدير النص إلى Word (DOCX)")
                         }
+                        OutlinedButton(onClick = {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, selectedName)
+                                putExtra(Intent.EXTRA_TEXT, extractedText)
+                            }
+                            startActivity(Intent.createChooser(shareIntent, "مشاركة النص المستخرج"))
+                        }, enabled = !isBusy && extractedText.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                            Text("مشاركة النص المستخرج")
+                        }
 
                         OutlinedButton(onClick = { saveCsvLauncher.launch("DocShop-export.csv") },
                             enabled = !isBusy && extractedText.isNotEmpty(),
