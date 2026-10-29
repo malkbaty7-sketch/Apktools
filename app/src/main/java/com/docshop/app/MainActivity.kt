@@ -37,6 +37,9 @@ class MainActivity : ComponentActivity() {
     private var extractedText by mutableStateOf("")
     private var status by mutableStateOf("اختر PDF أو Word أو Excel أو TXT للبدء.")
     private var isBusy by mutableStateOf(false)
+    private var showPasswordDialog by mutableStateOf(false)
+    private var pdfPassword by mutableStateOf("")
+    private var pendingPdfBytes: ByteArray? = null
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -163,6 +166,35 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
+                if (showPasswordDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showPasswordDialog = false; pdfPassword = "" },
+                        title = { Text("ملف PDF محمي") },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("أدخل كلمة مرور ملف PDF الذي تملكه أو لديك إذن بفتحه.")
+                                OutlinedTextField(
+                                    value = pdfPassword,
+                                    onValueChange = { pdfPassword = it },
+                                    label = { Text("كلمة المرور") },
+                                    singleLine = true
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val bytes = pendingPdfBytes
+                                if (bytes != null) loadProtectedPdf(bytes, pdfPassword)
+                                showPasswordDialog = false
+                            }) { Text("فتح الملف") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showPasswordDialog = false; pdfPassword = ""; pendingPdfBytes = null }) {
+                                Text("إلغاء")
+                            }
+                        }
+                    )
+                }
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Column(
                         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -248,6 +280,13 @@ class MainActivity : ComponentActivity() {
                         }
 
                         OutlinedButton(onClick = {
+                            extractedText = normalizeTableSpacing(extractedText)
+                            status = "تم تحويل المسافات المتكررة إلى فواصل أعمدة. راجع الجدول قبل التصدير."
+                        }, enabled = !isBusy && extractedText.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                            Text("تنظيم أعمدة الجداول قبل التصدير")
+                        }
+
+                        OutlinedButton(onClick = {
                             selectedName = "لم يتم اختيار ملف"
                             extractedText = ""
                             status = "تم إفراغ مساحة التحرير."
@@ -265,6 +304,38 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun extractPdfText(bytes: ByteArray, password: String): String {
+        PDDocument.load(ByteArrayInputStream(bytes), password).use { document ->
+            val stripper = PDFTextStripper()
+            stripper.sortByPosition = true
+            return stripper.getText(document)
+        }
+    }
+
+    private fun loadProtectedPdf(bytes: ByteArray, password: String) {
+        lifecycleScope.launch {
+            isBusy = true
+            status = "جارٍ فتح ملف PDF..."
+            try {
+                val text = withContext(Dispatchers.IO) { extractPdfText(bytes, password) }
+                extractedText = text
+                selectedName = selectedName
+                status = if (text.isBlank()) "تم فتح الملف لكن لم يُعثر على نص قابل للاستخراج." else "تم فتح ملف PDF بنجاح."
+                pendingPdfBytes = null
+                pdfPassword = ""
+            } catch (e: Exception) {
+                status = "تعذر فتح PDF. تحقق من كلمة المرور أو سلامة الملف."
+            } finally {
+                isBusy = false
+            }
+        }
+    }
+
+    private fun normalizeTableSpacing(text: String): String =
+        text.lineSequence().joinToString("\\n") { line ->
+            line.trim().replace(Regex(" {2,}"), "\\t")
+        }
 
     private fun escapeXml(value: String): String = value
         .replace("&", "&amp;")
@@ -315,7 +386,14 @@ class MainActivity : ComponentActivity() {
                     when {
                         type.equals("application/pdf", true) || lowerName.endsWith(".pdf") ->
                             contentResolver.openInputStream(uri)?.use { input ->
-                                PDDocument.load(input).use { PDFTextStripper().getText(it) }
+                                val bytes = input.readBytes()
+                                try {
+                                    extractPdfText(bytes, "")
+                                } catch (e: Exception) {
+                                    pendingPdfBytes = bytes
+                                    showPasswordDialog = true
+                                    throw IllegalStateException("قد يكون ملف PDF محميًا بكلمة مرور. أدخل كلمة المرور للمتابعة.", e)
+                                }
                             } ?: error("تعذر فتح ملف PDF")
 
                         lowerName.endsWith(".docx") ||
@@ -342,7 +420,7 @@ class MainActivity : ComponentActivity() {
                     "تم استخراج النص. راجعه قبل حفظ نسخة TXT."
                 }
             } catch (e: Exception) {
-                status = "تعذرت قراءة الملف: ${e.localizedMessage ?: "صيغة غير مدعومة أو ملف تالف/محمي"}"
+                status = e.localizedMessage ?: "تعذرت قراءة الملف."
             } finally {
                 isBusy = false
             }
