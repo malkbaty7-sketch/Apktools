@@ -10,8 +10,8 @@ android {
         applicationId = "com.docshop.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.6.0"
+        versionCode = 8
+        versionName = "1.7.0"
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -29,5 +29,6 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("com.rmtheis:tess-two:9.1.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
