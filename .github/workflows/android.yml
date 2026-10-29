@@ -28,6 +28,11 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Install DocShop launcher icon
+        run: |
+          mkdir -p app/src/main/res/mipmap-nodpi
+          base64 --decode app/src/main/icon-source/docshop_icon.jpg.b64 > app/src/main/res/mipmap-nodpi/ic_launcher.jpg
+
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
 
