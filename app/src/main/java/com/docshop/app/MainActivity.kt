@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
     private var pdfPassword by mutableStateOf("")
     private var pendingPdfBytes: ByteArray? = null
     private var selectedPdfUri: Uri? = null
+    private val recentDocuments = mutableStateListOf<Pair<String, String>>()
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
             }
             selectedName = queryDisplayName(uri) ?: uri.lastPathSegment ?: "document"
             selectedPdfUri = if (selectedName.lowercase().endsWith(".pdf") || contentResolver.getType(uri).equals("application/pdf", true)) uri else null
+            rememberRecentDocument(uri, selectedName)
             readDocument(uri)
         }
     }
@@ -171,6 +173,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PDFBoxResourceLoader.init(applicationContext)
+        loadRecentDocuments()
 
         setContent {
             MaterialTheme {
@@ -234,6 +237,27 @@ class MainActivity : ComponentActivity() {
                                     ))
                                 }, enabled = !isBusy, modifier = Modifier.fillMaxWidth()) {
                                     Text("اختيار ملف من الهاتف")
+                                }
+                            }
+                        }
+
+                        if (recentDocuments.isNotEmpty()) {
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically) {
+                                        Text("الملفات الأخيرة", style = MaterialTheme.typography.titleMedium)
+                                        TextButton(onClick = { clearRecentDocuments() }, enabled = !isBusy) { Text("مسح السجل") }
+                                    }
+                                    recentDocuments.forEach { item ->
+                                        OutlinedButton(onClick = { openRecentDocument(item.first) },
+                                            enabled = !isBusy, modifier = Modifier.fillMaxWidth()) {
+                                            Column(modifier = Modifier.fillMaxWidth()) {
+                                                Text(item.second, fontWeight = FontWeight.SemiBold)
+                                                Text("اضغط لإعادة فتح الملف", style = MaterialTheme.typography.bodySmall)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -453,6 +477,49 @@ class MainActivity : ComponentActivity() {
         zip.putNextEntry(ZipEntry(name))
         zip.write(value.toByteArray(Charsets.UTF_8))
         zip.closeEntry()
+    }
+
+    private fun rememberRecentDocument(uri: Uri, name: String) {
+        val key = uri.toString()
+        recentDocuments.removeAll { it.first == key }
+        recentDocuments.add(0, key to name)
+        while (recentDocuments.size > 8) recentDocuments.removeAt(recentDocuments.lastIndex)
+        val prefs = getSharedPreferences("docshop_recent_documents", MODE_PRIVATE)
+        val editor = prefs.edit().putInt("count", recentDocuments.size)
+        recentDocuments.forEachIndexed { index, item ->
+            editor.putString("uri_$index", item.first)
+            editor.putString("name_$index", item.second)
+        }
+        for (index in recentDocuments.size..7) {
+            editor.remove("uri_$index")
+            editor.remove("name_$index")
+        }
+        editor.apply()
+    }
+
+    private fun loadRecentDocuments() {
+        val prefs = getSharedPreferences("docshop_recent_documents", MODE_PRIVATE)
+        val count = prefs.getInt("count", 0).coerceIn(0, 8)
+        recentDocuments.clear()
+        for (index in 0 until count) {
+            val uri = prefs.getString("uri_$index", null)
+            val name = prefs.getString("name_$index", null)
+            if (uri != null && name != null) recentDocuments.add(uri to name)
+        }
+    }
+
+    private fun clearRecentDocuments() {
+        recentDocuments.clear()
+        getSharedPreferences("docshop_recent_documents", MODE_PRIVATE).edit().clear().apply()
+        status = "تم مسح سجل الملفات الأخيرة. لم يتم حذف الملفات من الهاتف."
+    }
+
+    private fun openRecentDocument(uriText: String) {
+        val uri = Uri.parse(uriText)
+        selectedName = queryDisplayName(uri) ?: uri.lastPathSegment ?: "document"
+        selectedPdfUri = if (selectedName.lowercase().endsWith(".pdf") ||
+            contentResolver.getType(uri).equals("application/pdf", true)) uri else null
+        readDocument(uri)
     }
 
     private fun queryDisplayName(uri: Uri): String? {
