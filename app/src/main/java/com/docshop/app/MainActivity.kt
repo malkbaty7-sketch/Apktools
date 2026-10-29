@@ -491,7 +491,7 @@ class MainActivity : ComponentActivity() {
 
                         if (extractedText.isNotEmpty()) {
                             val wordCount = extractedText.trim().split(Regex("\\s+")).count { it.isNotBlank() }
-                            val lineCount = extractedText.count { it == '\\n' } + 1
+                            val lineCount = extractedText.count { it == '\n' } + 1
                             Card(modifier = Modifier.fillMaxWidth()) {
                                 Column(
                                     modifier = Modifier.padding(12.dp),
