@@ -38,6 +38,7 @@ import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
@@ -299,6 +300,17 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
 
         setContent {
             MaterialTheme {
+                LaunchedEffect(extractedText, selectedName) {
+                    if (extractedText.isNotEmpty() && extractedText.length <= 400000) {
+                        delay(800)
+                        getSharedPreferences("docshop_text_draft", MODE_PRIVATE).edit()
+                            .putString("text", extractedText)
+                            .putString("name", selectedName)
+                            .putLong("saved_at", System.currentTimeMillis())
+                            .putBoolean("auto_saved", true)
+                            .apply()
+                    }
+                }
                 if (showExcelCellDialog) {
                     AlertDialog(
                         onDismissRequest = { showExcelCellDialog = false },
