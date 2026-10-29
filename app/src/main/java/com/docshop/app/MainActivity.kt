@@ -333,7 +333,7 @@ class MainActivity : ComponentActivity() {
 
     private fun normalizeTableSpacing(text: String): String =
         text.lineSequence().joinToString("\n") { line ->
-            line.trim().replace(Regex(" {2,}"), "\\t")
+            line.trim().replace(Regex(" {2,}"), "\t")
         }
 
     private fun escapeXml(value: String): String = value
@@ -432,17 +432,36 @@ class MainActivity : ComponentActivity() {
         val parser = Xml.newPullParser()
         parser.setInput(StringReader(documentXml))
         val output = StringBuilder()
+        var inTable = false
+        var inCell = false
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
-            if (event == XmlPullParser.START_TAG && parser.name == "t") {
-                output.append(parser.nextText())
-            } else if (event == XmlPullParser.END_TAG && parser.name == "p") {
-                output.append('\n')
+            when (event) {
+                XmlPullParser.START_TAG -> when (parser.name) {
+                    "tbl" -> inTable = true
+                    "tc" -> inCell = true
+                }
+                XmlPullParser.END_TAG -> when (parser.name) {
+                    "tc" -> {
+                        inCell = false
+                        output.append("\t")
+                    }
+                    "tr" -> {
+                        if (output.endsWith("\t")) output.setLength(output.length - 1)
+                        output.append("\n")
+                    }
+                    "p" -> if (!inTable || !inCell) output.append("\n") else output.append(" ")
+                    "tbl" -> {
+                        inTable = false
+                        if (output.isNotEmpty() && !output.endsWith("\n")) output.append("\n")
+                    }
+                }
+                XmlPullParser.TEXT -> output.append(parser.text)
             }
             event = parser.eventType
             if (event != XmlPullParser.END_DOCUMENT) event = parser.next()
         }
-        return output.toString().trimEnd()
+        return output.toString().replace(Regex("[ \\t]+\\n"), "\n").trimEnd()
     }
 
     private fun readXlsx(bytes: ByteArray): String {
