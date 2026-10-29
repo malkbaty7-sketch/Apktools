@@ -657,7 +657,7 @@ class MainActivity : ComponentActivity() {
 
                         OutlinedButton(
                             onClick = {
-                                val cleaned = extractedText.replace(Regex("\\n{3,}"), "\\n\\n")
+                                val cleaned = extractedText.replace(Regex("\\n{3,}"), "\n\n")
                                 val removed = extractedText.length - cleaned.length
                                 extractedText = cleaned
                                 status = if (removed > 0) {
