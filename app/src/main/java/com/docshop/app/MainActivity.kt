@@ -134,7 +134,6 @@ class MainActivity : ComponentActivity() {
                         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             textSize = 12f
                             color = android.graphics.Color.BLACK
-                            textDirection = Paint.TEXT_DIRECTION_RTL
                         }
                         val wrappedLines = extractedText.lines().flatMap { line ->
                             if (line.isEmpty()) listOf("") else line.chunked(78)
