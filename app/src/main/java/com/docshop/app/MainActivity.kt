@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
                 status = "جارٍ إنشاء ملف Word..."
                 try {
                     withContext(Dispatchers.IO) {
-                                            extractedText.split("\n").forEach { line ->
+                        val paragraphs = extractedText.split("\n").joinToString("") { line ->
                             """<w:p><w:r><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>"""
                         }
                         val documentXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
