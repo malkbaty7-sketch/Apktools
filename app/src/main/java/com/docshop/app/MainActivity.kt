@@ -362,7 +362,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val api = TessBaseAPI()
-        if (!api.init(filesDir.absolutePath, "ara", TessBaseAPI.OEM_LSTM_ONLY)) {
+        if (!api.init(filesDir.absolutePath, "ara")) {
             api.end()
             error("تعذر تهيئة محرك OCR العربي")
         }
