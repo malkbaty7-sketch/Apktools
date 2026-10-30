@@ -161,6 +161,27 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
             }
         }
 
+    private val saveMarkdownLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                isBusy = true
+                status = "جارٍ إنشاء ملف Markdown..."
+                try {
+                    withContext(Dispatchers.IO) {
+                        val markdown = "# ${selectedName.replace("\n", " ").trim()}\n\n" + extractedText
+                        contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use {
+                            it.write(markdown)
+                        } ?: error("تعذر فتح ملف الحفظ")
+                    }
+                    status = "تم تصدير النص إلى Markdown مع الاحتفاظ بفواصل الأسطر. قد تحتاج إلى تنسيق العناوين والجداول يدويًا."
+                } catch (e: Exception) {
+                    status = "فشل إنشاء Markdown: ${e.localizedMessage ?: "خطأ غير معروف"}"
+                } finally {
+                    isBusy = false
+                }
+            }
+        }
+
     private val savePdfExportLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
             if (uri != null) lifecycleScope.launch {
@@ -827,6 +848,12 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             enabled = !isBusy && extractedText.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth()) {
                             Text("تصدير النص إلى HTML")
+                        }
+
+                        OutlinedButton(onClick = { saveMarkdownLauncher.launch("DocShop-export.md") },
+                            enabled = !isBusy && extractedText.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text("تصدير النص إلى Markdown")
                         }
 
 
