@@ -1437,6 +1437,24 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
         val field = StringBuilder()
         var inQuotes = false
         var index = 0
+        val firstLine = csv.lineSequence().firstOrNull { it.isNotBlank() } ?: ""
+        val delimiterCounts = mutableMapOf(',' to 0, ';' to 0, '\t' to 0)
+        var scanQuotes = false
+        var scanIndex = 0
+        while (scanIndex < firstLine.length) {
+            val current = firstLine[scanIndex]
+            if (current == '"' && scanQuotes && scanIndex + 1 < firstLine.length && firstLine[scanIndex + 1] == '"') {
+                scanIndex++
+            } else if (current == '"') {
+                scanQuotes = !scanQuotes
+            } else if (!scanQuotes && delimiterCounts.containsKey(current)) {
+                delimiterCounts[current] = delimiterCounts.getValue(current) + 1
+            }
+            scanIndex++
+        }
+        val delimiter = delimiterCounts.maxByOrNull { it.value }?.key?.takeIf {
+            delimiterCounts.getValue(it) > 0
+        } ?: ','
 
         while (index < csv.length) {
             val char = csv[index]
@@ -1452,7 +1470,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
             } else {
                 when (char) {
                     '"' -> if (field.isEmpty()) inQuotes = true else field.append(char)
-                    ',' -> {
+                    delimiter -> {
                         row.add(field.toString())
                         field.setLength(0)
                     }
