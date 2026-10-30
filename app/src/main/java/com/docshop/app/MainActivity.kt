@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
     private var pdfZoom by mutableFloatStateOf(1f)
     private var pdfViewerStatus by mutableStateOf("")
     private var draftSavedAt by mutableLongStateOf(0L)
+    private var showMarkdownPreview by mutableStateOf(false)
     private val recentDocuments = mutableStateListOf<Pair<String, String>>()
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -771,6 +772,38 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             placeholder = { Text("سيظهر محتوى الملف هنا") },
                             minLines = 8
                         )
+
+                        if (extractedText.isNotEmpty()) {
+                            OutlinedButton(
+                                onClick = { showMarkdownPreview = !showMarkdownPreview },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (showMarkdownPreview) "إخفاء معاينة Markdown" else "معاينة Markdown")
+                            }
+                            if (showMarkdownPreview) {
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text("معاينة تنسيق Markdown", style = MaterialTheme.typography.titleMedium)
+                                        extractedText.lines().forEach { rawLine ->
+                                            val line = rawLine.trim()
+                                            when {
+                                                line.startsWith("### ") -> Text(line.removePrefix("### "), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                                line.startsWith("## ") -> Text(line.removePrefix("## "), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                                line.startsWith("# ") -> Text(line.removePrefix("# "), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                                line.startsWith("- ") || line.startsWith("* ") -> Text("• " + line.drop(2))
+                                                line.matches(Regex("^\\\\d+\\\\.\\\\s+.*")) -> Text(line)
+                                                line.startsWith("> ") -> Text(line.removePrefix("> "), color = MaterialTheme.colorScheme.secondary)
+                                                line.isBlank() -> Spacer(modifier = Modifier.height(4.dp))
+                                                else -> Text(line)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         Button(onClick = { saveTextLauncher.launch("DocShop-export.txt") },
                             enabled = !isBusy && extractedText.isNotEmpty(),
