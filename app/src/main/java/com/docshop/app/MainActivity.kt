@@ -1254,11 +1254,16 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             contentResolver.openInputStream(uri)?.use { readXlsx(it.readBytes()) }
                                 ?: error("تعذر فتح ملف Excel")
 
+                        lowerName.endsWith(".md") || lowerName.endsWith(".markdown") ||
+                            type.equals("text/markdown", true) ->
+                            contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                                ?: error("تعذر فتح ملف Markdown")
+
                         lowerName.endsWith(".txt") || type.equals("text/plain", true) ->
                             contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
                                 ?: error("تعذر فتح الملف النصي")
 
-                        else -> error("الصيغة غير مدعومة بعد. جرّب PDF أو DOCX أو XLSX أو TXT.")
+                        else -> error("الصيغة غير مدعومة بعد. جرّب PDF أو DOCX أو XLSX أو TXT أو Markdown.")
                     }
                 }
                 extractedText = result
