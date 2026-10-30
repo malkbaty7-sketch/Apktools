@@ -787,14 +787,26 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                                         verticalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Text("معاينة تنسيق Markdown", style = MaterialTheme.typography.titleMedium)
+                                        var insideCodeBlock by remember(extractedText) { mutableStateOf(false) }
                                         extractedText.lines().forEach { rawLine ->
                                             val line = rawLine.trim()
                                             when {
+                                                line.startsWith("```") -> {
+                                                    insideCodeBlock = !insideCodeBlock
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                }
+                                                insideCodeBlock -> Card(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                                ) {
+                                                    Text(rawLine, modifier = Modifier.fillMaxWidth().padding(8.dp), style = MaterialTheme.typography.bodySmall)
+                                                }
+                                                line.matches(Regex("^-{3,}$|^\\\\*{3,}$|^_{3,}$")) -> HorizontalDivider()
                                                 line.startsWith("### ") -> Text(line.removePrefix("### "), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                                                 line.startsWith("## ") -> Text(line.removePrefix("## "), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                                 line.startsWith("# ") -> Text(line.removePrefix("# "), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                                 line.startsWith("- ") || line.startsWith("* ") -> Text("• " + line.drop(2))
-                                                line.matches(Regex("^\\\\d+\\\\.\\\\s+.*")) -> Text(line)
+                                                line.matches(Regex("^\\\\d+\\\\.\\\\s+.*")) -> Text("• " + line.substringAfter(". "))
                                                 line.startsWith("> ") -> Text(line.removePrefix("> "), color = MaterialTheme.colorScheme.secondary)
                                                 line.isBlank() -> Spacer(modifier = Modifier.height(4.dp))
                                                 else -> Text(line)
