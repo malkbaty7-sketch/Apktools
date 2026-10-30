@@ -458,6 +458,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                                     openFile.launch(arrayOf(
                                         "application/pdf",
                                         "text/plain",
+                                        "text/markdown",
                                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                         "application/msword",
