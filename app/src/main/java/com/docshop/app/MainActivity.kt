@@ -1456,12 +1456,12 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                         row.add(field.toString())
                         field.setLength(0)
                     }
-                    '\\n', '\\r' -> {
+                    '\n', '\r' -> {
                         row.add(field.toString())
                         field.setLength(0)
-                        rows.add(row.joinToString("\\t"))
+                        rows.add(row.joinToString("\t"))
                         row.clear()
-                        if (char == '\\r' && index + 1 < csv.length && csv[index + 1] == '\\n') index++
+                        if (char == '\r' && index + 1 < csv.length && csv[index + 1] == '\n') index++
                     }
                     else -> field.append(char)
                 }
@@ -1471,9 +1471,9 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
 
         if (field.isNotEmpty() || row.isNotEmpty()) {
             row.add(field.toString())
-            rows.add(row.joinToString("\\t"))
+            rows.add(row.joinToString("\t"))
         }
-        return rows.joinToString("\\n")
+        return rows.joinToString("\n")
     }
 
     private fun parseSharedStrings(xml: String): List<String> {
