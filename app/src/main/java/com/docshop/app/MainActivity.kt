@@ -453,12 +453,13 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             Column(modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("فتح مستند", style = MaterialTheme.typography.titleMedium)
-                                Text("يدعم استخراج النص من PDF وDOCX وXLSX وTXT. لا يتم تعديل الملف الأصلي.",
+                                Text("يدعم استخراج النص من PDF وDOCX وXLSX وCSV وTXT وMarkdown. لا يتم تعديل الملف الأصلي.",
                                     style = MaterialTheme.typography.bodyMedium)
                                 Button(onClick = {
                                     openFile.launch(arrayOf(
                                         "application/pdf",
                                         "text/plain",
+                                        "text/csv",
                                         "text/markdown",
                                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1300,6 +1301,10 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             contentResolver.openInputStream(uri)?.use { readXlsx(it.readBytes()) }
                                 ?: error("تعذر فتح ملف Excel")
 
+                        lowerName.endsWith(".csv") || type.equals("text/csv", true) ->
+                            contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { parseCsvToTabText(it.readText().removePrefix("\uFEFF")) }
+                                ?: error("تعذر فتح ملف CSV")
+
                         lowerName.endsWith(".md") || lowerName.endsWith(".markdown") ||
                             type.equals("text/markdown", true) ->
                             contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
@@ -1309,7 +1314,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
                                 ?: error("تعذر فتح الملف النصي")
 
-                        else -> error("الصيغة غير مدعومة بعد. جرّب PDF أو DOCX أو XLSX أو TXT أو Markdown.")
+                        else -> error("الصيغة غير مدعومة بعد. جرّب PDF أو DOCX أو XLSX أو CSV أو TXT أو Markdown.")
                     }
                 }
                 extractedText = result
@@ -1424,6 +1429,51 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
             if (event != XmlPullParser.END_DOCUMENT) event = parser.next()
         }
         return output.toString().trimEnd()
+    }
+
+    private fun parseCsvToTabText(csv: String): String {
+        val rows = mutableListOf<String>()
+        val row = mutableListOf<String>()
+        val field = StringBuilder()
+        var inQuotes = false
+        var index = 0
+
+        while (index < csv.length) {
+            val char = csv[index]
+            if (inQuotes) {
+                when {
+                    char == '"' && index + 1 < csv.length && csv[index + 1] == '"' -> {
+                        field.append('"')
+                        index++
+                    }
+                    char == '"' -> inQuotes = false
+                    else -> field.append(char)
+                }
+            } else {
+                when (char) {
+                    '"' -> if (field.isEmpty()) inQuotes = true else field.append(char)
+                    ',' -> {
+                        row.add(field.toString())
+                        field.setLength(0)
+                    }
+                    '\\n', '\\r' -> {
+                        row.add(field.toString())
+                        field.setLength(0)
+                        rows.add(row.joinToString("\\t"))
+                        row.clear()
+                        if (char == '\\r' && index + 1 < csv.length && csv[index + 1] == '\\n') index++
+                    }
+                    else -> field.append(char)
+                }
+            }
+            index++
+        }
+
+        if (field.isNotEmpty() || row.isNotEmpty()) {
+            row.add(field.toString())
+            rows.add(row.joinToString("\\t"))
+        }
+        return rows.joinToString("\\n")
     }
 
     private fun parseSharedStrings(xml: String): List<String> {
