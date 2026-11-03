@@ -266,9 +266,12 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 status = "جارٍ إنشاء ملف CSV..."
                 try {
                     withContext(Dispatchers.IO) {
-                        val csv = extractedText.lineSequence().joinToString("\r\n") { row ->
+                        val csvRows = extractedText.split('\n')
+                        val csv = csvRows.joinToString("\r\n") { rawRow ->
+                            val row = rawRow.removeSuffix("\r")
                             row.split('\t').joinToString(",") { cell ->
-                                "\"" + cell.replace("\"", "\"\"") + "\""
+                                val escaped = cell.replace("\"", "\"\"")
+                                "\"" + escaped + "\""
                             }
                         }
                         contentResolver.openOutputStream(uri)?.use { stream ->
