@@ -10,8 +10,8 @@ android {
         applicationId = "com.docshop.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 36
-        versionName = "1.35.0"
+        versionCode = 37
+        versionName = "1.36.0"
     }
     buildFeatures { compose = true }
     compileOptions {
