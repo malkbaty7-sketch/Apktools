@@ -26,12 +26,11 @@ object LegacyDocumentReader {
                 buildString {
                     database.tableNames.sorted().forEach { tableName ->
                         append("【").append(tableName).append("】\n")
-                        database.getTable(tableName).use { table ->
-                            table.forEach { row ->
-                                append(row.entries.joinToString("\t") { entry ->
-                                    entry.key + "=" + (entry.value?.toString() ?: "")
-                                }).append("\n")
-                            }
+                        val table = database.getTable(tableName)
+                        for (row in table) {
+                            append(row.entries.joinToString("\t") { entry ->
+                                entry.key + "=" + (entry.value?.toString() ?: "")
+                            }).append("\n")
                         }
                         append("\n")
                     }
