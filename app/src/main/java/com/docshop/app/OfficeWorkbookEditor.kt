@@ -31,16 +31,18 @@ object OfficeWorkbookEditor {
             ?.let(::readSharedStrings).orEmpty()
         val sections = splitSections(editedText, sheets.map { it.name })
         var changedCells = 0
+        var processedSheets = 0
 
-        sheets.forEachIndexed { sheetIndex, sheet ->
-            val sheetBytes = entries[sheet.path] ?: return@forEachIndexed
-            val content = sections[sheet.name] ?: if (sheets.size == 1) editedText else return@forEachIndexed
+        sheets.forEach { sheet ->
+            val sheetBytes = entries[sheet.path] ?: return@forEach
+            val content = sections[sheet.name] ?: if (sheets.size == 1) editedText else return@forEach
             val updated = updateSheet(sheetBytes.toString(Charsets.UTF_8), content, sharedStrings)
             changedCells += updated.second
+            processedSheets++
             entries[sheet.path] = updated.first.toByteArray(Charsets.UTF_8)
         }
-        require(changedCells > 0 || editedText.isBlank()) {
-            "لم يتم العثور على خلايا قابلة للتحديث في أوراق Excel. لم يتم تغيير الملف الأصلي."
+        require(processedSheets > 0) {
+            "لم يتم العثور على ملفات أوراق العمل داخل مصنف Excel."
         }
 
         val recalculationWorkbook = workbook.replace(
