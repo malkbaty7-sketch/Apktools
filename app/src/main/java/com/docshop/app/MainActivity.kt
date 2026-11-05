@@ -1136,16 +1136,26 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
         }
     }
 
+    private fun needsArabicOcr(text: String): Boolean {
+        val arabic = text.count { it in '\\u0600'..'\\u06FF' || it in '\\u0750'..'\\u077F' || it in '\\u08A0'..'\\u08FF' }
+        val latin = text.count { it in 'A'..'Z' || it in 'a'..'z' }
+        val letters = arabic + latin
+        if (text.isBlank() || arabic < 20 || letters < 80) return false
+        val latinRatio = latin.toFloat() / letters.toFloat()
+        val replacementChars = text.count { it == '\\uFFFD' }
+        val suspiciousMarks = text.count { it in '\\u200B'..'\\u200F' || it in '\\u202A'..'\\u202E' }
+        return latinRatio > 0.12f || replacementChars >= 3 || suspiciousMarks > 12
+    }
+
     private fun extractPdfText(bytes: ByteArray, password: String): String {
         PDDocument.load(ByteArrayInputStream(bytes), password).use { document ->
             val stripper = PDFTextStripper().apply {
-                // Preserve the PDF content-stream order. Sorting Arabic glyphs by
-                // ascending X position can reverse RTL runs and scramble word order.
+                // Keep the content-stream order; glyph-position sorting can scramble RTL runs.
                 sortByPosition = false
                 wordSeparator = " "
-                lineSeparator = "\n"
+                lineSeparator = "\\n"
                 paragraphStart = ""
-                paragraphEnd = "\n"
+                paragraphEnd = "\\n"
             }
             return stripper.getText(document)
         }
@@ -1320,6 +1330,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
             try {
                 var openedXlsxBytes: ByteArray? = null
                 var openedDocxBytes: ByteArray? = null
+                var usedAutomaticArabicOcr = false
                 val result = withContext(Dispatchers.IO) {
                     val type = contentResolver.getType(uri).orEmpty()
                     val name = queryDisplayName(uri).orEmpty()
@@ -1329,11 +1340,19 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             contentResolver.openInputStream(uri)?.use { input ->
                                 val bytes = input.readBytes()
                                 try {
-                                    extractPdfText(bytes, "")
+                                    val directText = extractPdfText(bytes, "")
+                                    if (needsArabicOcr(directText)) {
+                                        usedAutomaticArabicOcr = true
+                                        val ocrText = extractArabicOcr(uri)
+                                        if (ocrText.isNotBlank()) ocrText else directText
+                                    } else {
+                                        directText
+                                    }
                                 } catch (e: Exception) {
+                                    if (e.message?.contains("OCR") == true || e is java.io.IOException) throw e
                                     pendingPdfBytes = bytes
                                     showPasswordDialog = true
-                                    throw IllegalStateException("قد يكون ملف PDF محميًا بكلمة مرور. أدخل كلمة المرور للمتابعة.", e)
+                                    throw IllegalStateException("تعذر استخراج PDF مباشرة. قد يكون محميًا بكلمة مرور.", e)
                                 }
                             } ?: error("تعذر فتح ملف PDF")
 
@@ -1393,6 +1412,8 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 redoTextEdit = null
                 status = if (result.isBlank()) {
                     "لم يُعثر على نص. قد يكون الملف فارغًا أو يحتوي على صور فقط."
+                } else if (usedAutomaticArabicOcr) {
+                    "اكتُشف احتمال تلف ترميز النص العربي؛ نُفّذ OCR العربي تلقائيًا. راجع الأرقام والتشكيل والجداول."
                 } else {
                     "تم استخراج النص. راجعه قبل حفظ نسخة TXT."
                 }
