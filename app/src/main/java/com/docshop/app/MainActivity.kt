@@ -1137,13 +1137,13 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
     }
 
     private fun needsArabicOcr(text: String): Boolean {
-        val arabic = text.count { it in '\\u0600'..'\\u06FF' || it in '\\u0750'..'\\u077F' || it in '\\u08A0'..'\\u08FF' }
+        val arabic = text.count { it in '\u0600'..'\u06FF' || it in '\u0750'..'\u077F' || it in '\u08A0'..'\u08FF' }
         val latin = text.count { it in 'A'..'Z' || it in 'a'..'z' }
         val letters = arabic + latin
         if (text.isBlank() || arabic < 20 || letters < 80) return false
         val latinRatio = latin.toFloat() / letters.toFloat()
-        val replacementChars = text.count { it == '\\uFFFD' }
-        val suspiciousMarks = text.count { it in '\\u200B'..'\\u200F' || it in '\\u202A'..'\\u202E' }
+        val replacementChars = text.count { it == '\uFFFD' }
+        val suspiciousMarks = text.count { it in '\u200B'..'\u200F' || it in '\u202A'..'\u202E' }
         return latinRatio > 0.12f || replacementChars >= 3 || suspiciousMarks > 12
     }
 
@@ -1153,9 +1153,9 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 // Keep the content-stream order; glyph-position sorting can scramble RTL runs.
                 sortByPosition = false
                 wordSeparator = " "
-                lineSeparator = "\\n"
+                lineSeparator = "\n"
                 paragraphStart = ""
-                paragraphEnd = "\\n"
+                paragraphEnd = "\n"
             }
             return stripper.getText(document)
         }
