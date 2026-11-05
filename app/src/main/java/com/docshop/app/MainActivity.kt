@@ -162,6 +162,37 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
             }
         }
 
+    private val saveRtfLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/rtf")) { uri ->
+            if (uri != null) lifecycleScope.launch {
+                isBusy = true
+                status = "جارٍ إنشاء ملف RTF..."
+                try {
+                    withContext(Dispatchers.IO) {
+                        val rtf = buildString {
+                            append("{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Arial;}}\\viewkind4\\uc1\\pard\\f0\\fs24 ")
+                            extractedText.forEach { ch ->
+                                when (ch) {
+                                    '\\' -> append("\\\\")
+                                    '{' -> append("\\{")
+                                    '}' -> append("\\}")
+                                    '\n' -> append("\\par\n")
+                                    '\r' -> Unit
+                                    else -> if (ch.code in 32..126) append(ch) else append("\\u" + ch.code.toShort() + "?")
+                                }
+                            }
+                            append("}")
+                        }
+                        contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.US_ASCII)?.use { it.write(rtf) }
+                            ?: error("تعذر فتح ملف الحفظ")
+                    }
+                    status = "تم تصدير النص إلى RTF."
+                } catch (e: Exception) {
+                    status = "فشل إنشاء RTF: " + (e.localizedMessage ?: "خطأ غير معروف")
+                } finally { isBusy = false }
+            }
+        }
+
     private val saveMarkdownLauncher =
         registerForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
             if (uri != null) lifecycleScope.launch {
@@ -900,6 +931,12 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             Text("تصدير النص إلى HTML")
                         }
 
+                        OutlinedButton(onClick = { saveRtfLauncher.launch("DocShop-export.rtf") },
+                            enabled = !isBusy && extractedText.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()) {
+                            Text("تصدير النص إلى RTF")
+                        }
+
                         OutlinedButton(onClick = { saveMarkdownLauncher.launch("DocShop-export.md") },
                             enabled = !isBusy && extractedText.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth()) {
@@ -1308,6 +1345,10 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { parseCsvToTabText(it.readText().removePrefix("\uFEFF")) }
                                 ?: error("تعذر فتح ملف CSV")
 
+                        lowerName.endsWith(".rtf") || type.equals("application/rtf", true) ->
+                            contentResolver.openInputStream(uri)?.bufferedReader(Charsets.ISO_8859_1)?.use { readRtf(it.readText()) }
+                                ?: error("تعذر قراءة ملف RTF")
+
                         lowerName.endsWith(".md") || lowerName.endsWith(".markdown") ||
                             type.equals("text/markdown", true) ->
                             contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
@@ -1334,6 +1375,58 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 isBusy = false
             }
         }
+    }
+
+    private fun readRtf(rtf: String): String {
+        require(rtf.trimStart().startsWith("{\\rtf")) { "ملف RTF غير صالح" }
+        val out = StringBuilder()
+        var i = 0
+        var skip = false
+        val groups = mutableListOf<Boolean>()
+        while (i < rtf.length) {
+            val ch = rtf[i]
+            when {
+                ch == '{' -> {
+                    groups.add(skip)
+                    if (i + 1 < rtf.length && rtf[i + 1] == '\\') {
+                        val start = i + 2
+                        val end = rtf.indexOfAny(charArrayOf(' ', '\\', '{', '}'), start).let { if (it < 0) rtf.length else it }
+                        if (rtf.substring(start, end) in setOf("fonttbl", "colortbl", "stylesheet", "info", "pict", "object", "header", "footer")) skip = true
+                    }
+                    i++
+                }
+                ch == '}' -> { skip = groups.removeLastOrNull() ?: false; i++ }
+                ch == '\\' && i + 1 < rtf.length -> {
+                    val n = rtf[i + 1]
+                    when {
+                        n == '\\' || n == '{' || n == '}' -> { if (!skip) out.append(n); i += 2 }
+                        n == '\'' && i + 3 < rtf.length -> { if (!skip) out.append(rtf.substring(i + 2, i + 4).toIntOrNull(16)?.toChar() ?: ' '); i += 4 }
+                        n.isLetter() -> {
+                            var j = i + 1
+                            while (j < rtf.length && rtf[j].isLetter()) j++
+                            val word = rtf.substring(i + 1, j)
+                            var k = j
+                            if (k < rtf.length && (rtf[k] == '-' || rtf[k].isDigit())) {
+                                if (rtf[k] == '-') k++
+                                while (k < rtf.length && rtf[k].isDigit()) k++
+                            }
+                            val p = rtf.substring(j, k).toIntOrNull()
+                            if (!skip) when (word) {
+                                "par", "line" -> out.append('\n')
+                                "tab" -> out.append('\t')
+                                "u" -> p?.let { out.append(it.toShort().toInt().toChar()) }
+                            }
+                            i = if (k < rtf.length && rtf[k] == ' ') k + 1 else k
+                        }
+                        else -> i += 2
+                    }
+                }
+                !skip && (ch == '\r' || ch == '\n') -> i++
+                !skip -> { out.append(ch); i++ }
+                else -> i++
+            }
+        }
+        return out.toString().replace(Regex("[ \\t]+\\n"), "\n").trim()
     }
 
     private fun readDocx(bytes: ByteArray): String {
