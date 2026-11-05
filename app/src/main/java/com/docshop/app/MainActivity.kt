@@ -487,7 +487,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             Column(modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("فتح مستند", style = MaterialTheme.typography.titleMedium)
-                                Text("يدعم استخراج النص من PDF وDOCX وXLSX وCSV وTXT وMarkdown. لا يتم تعديل الملف الأصلي.",
+                                Text("يدعم استخراج النص من PDF وDOC/DOCX وXLS/XLSX وAccess MDB/ACCDB وCSV وTXT وMarkdown. لا يتم تعديل الملف الأصلي.",
                                     style = MaterialTheme.typography.bodyMedium)
                                 Button(onClick = {
                                     openFile.launch(arrayOf(
@@ -1331,6 +1331,18 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                                 }
                             } ?: error("تعذر فتح ملف PDF")
 
+                        lowerName.endsWith(".doc") || type.equals("application/msword", true) ->
+                            contentResolver.openInputStream(uri)?.use { LegacyDocumentReader.readDoc(it) }
+                                ?: error("تعذر فتح ملف Word القديم")
+
+                        lowerName.endsWith(".xls") || type.equals("application/vnd.ms-excel", true) ->
+                            contentResolver.openInputStream(uri)?.use { LegacyDocumentReader.readXls(it) }
+                                ?: error("تعذر فتح ملف Excel القديم")
+
+                        lowerName.endsWith(".mdb") || lowerName.endsWith(".accdb") ->
+                            contentResolver.openInputStream(uri)?.use { LegacyDocumentReader.readAccess(it, cacheDir) }
+                                ?: error("تعذر فتح قاعدة Access")
+
                         lowerName.endsWith(".docx") ||
                             type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ->
                             contentResolver.openInputStream(uri)?.use { readDocx(it.readBytes()) }
@@ -1358,7 +1370,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
                                 ?: error("تعذر فتح الملف النصي")
 
-                        else -> error("الصيغة غير مدعومة بعد. جرّب PDF أو DOCX أو XLSX أو CSV أو TXT أو Markdown.")
+                        else -> error("الصيغة غير مدعومة بعد. جرّب PDF أو DOC/DOCX أو XLS/XLSX أو MDB/ACCDB أو CSV أو TXT أو Markdown.")
                     }
                 }
                 extractedText = result
