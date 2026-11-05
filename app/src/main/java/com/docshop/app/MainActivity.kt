@@ -946,6 +946,32 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                         }
 
 
+                        if (selectedPdfUri != null) {
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("تحويل ملف PDF الحالي", style = MaterialTheme.typography.titleMedium)
+                                    Text(
+                                        "حوّل النص المستخرج بعد مراجعته أو تحريره إلى ملف Word أو Excel. يتم إنشاء نسخة جديدة ولا يتغير ملف PDF الأصلي. قد لا تنتقل التخطيطات المعقدة أو الصور أو الجداول بدقة كاملة.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    OutlinedButton(
+                                        onClick = { saveDocxLauncher.launch("DocShop-PDF-to-Word.docx") },
+                                        enabled = !isBusy && extractedText.isNotBlank(),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("تحويل PDF إلى Word (DOCX)") }
+                                    OutlinedButton(
+                                        onClick = { saveXlsxLauncher.launch("DocShop-PDF-to-Excel.xlsx") },
+                                        enabled = !isBusy && extractedText.isNotBlank(),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("تحويل PDF إلى Excel (XLSX)") }
+                                }
+                            }
+                        }
+
                         OutlinedButton(onClick = { saveDocxLauncher.launch("DocShop-export.docx") },
                             enabled = !isBusy && extractedText.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth()) {
