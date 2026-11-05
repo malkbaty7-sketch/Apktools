@@ -1339,20 +1339,19 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                         type.equals("application/pdf", true) || lowerName.endsWith(".pdf") ->
                             contentResolver.openInputStream(uri)?.use { input ->
                                 val bytes = input.readBytes()
-                                try {
-                                    val directText = extractPdfText(bytes, "")
-                                    if (needsArabicOcr(directText)) {
-                                        usedAutomaticArabicOcr = true
-                                        val ocrText = extractArabicOcr(uri)
-                                        if (ocrText.isNotBlank()) ocrText else directText
-                                    } else {
-                                        directText
-                                    }
+                                val directText = try {
+                                    extractPdfText(bytes, "")
                                 } catch (e: Exception) {
-                                    if (e.message?.contains("OCR") == true || e is java.io.IOException) throw e
                                     pendingPdfBytes = bytes
                                     showPasswordDialog = true
-                                    throw IllegalStateException("تعذر استخراج PDF مباشرة. قد يكون محميًا بكلمة مرور.", e)
+                                    throw IllegalStateException("قد يكون ملف PDF محميًا بكلمة مرور. أدخل كلمة المرور للمتابعة.", e)
+                                }
+                                if (needsArabicOcr(directText)) {
+                                    usedAutomaticArabicOcr = true
+                                    val ocrText = extractArabicOcr(uri)
+                                    if (ocrText.isNotBlank()) ocrText else directText
+                                } else {
+                                    directText
                                 }
                             } ?: error("تعذر فتح ملف PDF")
 
