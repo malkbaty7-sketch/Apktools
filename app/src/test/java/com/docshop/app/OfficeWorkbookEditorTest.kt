@@ -86,6 +86,39 @@ class OfficeWorkbookEditorTest {
         assertTrue(entries.getValue("xl/worksheets/sheet1.xml").contains("<f>SUM(B1:B1)</f>"))
     }
 
+    @Test
+    fun writerCreatesArabicDocxTablesAndPreservesXmlEscaping() {
+        val parts = unzipBytes(OfficeDocumentWriter.createDocx("العنوان\tالقيمة\nالاسم\tمحمد & علي"))
+        val document = parts.getValue("word/document.xml")
+        assertTrue(document.contains("العنوان"))
+        assertTrue(document.contains("محمد &amp; علي"))
+        assertTrue(document.contains("<w:tbl>"))
+        assertTrue(document.contains("<w:bidi/>"))
+    }
+
+    @Test
+    fun writerCreatesRightToLeftXlsxWithArabicValuesAndFormulaCells() {
+        val parts = unzipBytes(OfficeDocumentWriter.createXlsx("الاسم\tالقيمة\nمحمد\t12\nالإجمالي\t=SUM(B2:B2)"))
+        val sheet = parts.getValue("xl/worksheets/sheet1.xml")
+        assertTrue(sheet.contains("rightToLeft=\"1\""))
+        assertTrue(sheet.contains("الاسم"))
+        assertTrue(sheet.contains("محمد"))
+        assertTrue(sheet.contains("<v>12</v>"))
+        assertTrue(sheet.contains("<f>SUM(B2:B2)</f>"))
+    }
+
+    private fun unzipBytes(bytes: ByteArray): Map<String, String> {
+        val result = linkedMapOf<String, String>()
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (!entry.isDirectory) result[entry.name] = zip.readBytes().toString(Charsets.UTF_8)
+                zip.closeEntry()
+            }
+        }
+        return result
+    }
+
     private fun docxFixture(): ByteArray {
         val output = ByteArrayOutputStream()
         ZipOutputStream(output).use { zip ->
