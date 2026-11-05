@@ -13,12 +13,32 @@ object OfficeDocumentWriter {
     private const val SHEET_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
     fun createDocx(text: String): ByteArray {
-        val paragraphs = text.split('\n').joinToString("") { line ->
-            val safeLine = escapeXml(line)
-            """<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:rtl/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr><w:t xml:space="preserve">$safeLine</w:t></w:r></w:p>"""
+        val lines = text.split('\n')
+        val body = StringBuilder()
+        var index = 0
+        while (index < lines.size) {
+            if (lines[index].contains('\t')) {
+                val tableRows = mutableListOf<List<String>>()
+                while (index < lines.size && lines[index].contains('\t')) {
+                    tableRows.add(lines[index].split('\t'))
+                    index++
+                }
+                val columnCount = tableRows.maxOfOrNull { it.size } ?: 1
+                val rowsXml = tableRows.joinToString("") { cells ->
+                    val cellXml = (0 until columnCount).joinToString("") { column ->
+                        val value = escapeXml(cells.getOrNull(column).orEmpty())
+                        """<w:tc><w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:rtl/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr><w:t xml:space="preserve">$value</w:t></w:r></w:p></w:tc>"""
+                    }
+                    "<w:tr>$cellXml</w:tr>"
+                }
+                body.append("""<w:tbl><w:tblPr><w:bidiVisual/><w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/><w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders></w:tblPr>$rowsXml</w:tbl>""")
+            } else {
+                body.append(paragraphXml(lines[index]))
+                index++
+            }
         }
         val document = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="$WORD_NS"><w:body>$paragraphs<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/><w:bidi/></w:sectPr></w:body></w:document>"""
+<w:document xmlns:w="$WORD_NS"><w:body>$body<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/><w:bidi/></w:sectPr></w:body></w:document>"""
         val styles = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="$WORD_NS"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:bidi/></w:pPr></w:pPrDefault></w:docDefaults></w:styles>"""
         return zipBytes {
@@ -28,6 +48,11 @@ object OfficeDocumentWriter {
             entry("word/document.xml", document)
             entry("word/styles.xml", styles)
         }
+    }
+
+    private fun paragraphXml(line: String): String {
+        val safeLine = escapeXml(line)
+        return """<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr><w:r><w:rPr><w:rtl/><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr><w:t xml:space="preserve">$safeLine</w:t></w:r></w:p>"""
     }
 
     fun createXlsx(text: String): ByteArray {
@@ -40,7 +65,9 @@ object OfficeDocumentWriter {
                 val value = raw.trim()
                 val isNumber = value.matches(Regex("-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?"))
                 val style = if (rowIndex == 0) " s=\"1\"" else ""
-                if (isNumber) {
+                if (raw.startsWith("=")) {
+                    """<c r="$ref"$style><f>${escapeXml(raw.drop(1))}</f><v></v></c>"""
+                } else if (isNumber) {
                     """<c r="$ref"$style><v>$value</v></c>"""
                 } else {
                     """<c r="$ref" t="inlineStr"$style><is><t xml:space="preserve">${escapeXml(raw)}</t></is></c>"""
