@@ -476,7 +476,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             Column(modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("فتح مستند", style = MaterialTheme.typography.titleMedium)
-                                Text("يدعم استخراج النص من PDF وDOC/DOCX وXLS/XLSX وAccess MDB/ACCDB وCSV وTXT وMarkdown. لا يتم تعديل الملف الأصلي.",
+                                Text("استخراج النص من PDF وWord وExcel وPowerPoint وOpenDocument وAccess وCSV وRTF وHTML وTXT وMarkdown.",
                                     style = MaterialTheme.typography.bodyMedium)
                                 Button(onClick = {
                                     openFile.launch(arrayOf(
@@ -486,6 +486,13 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                                         "text/markdown",
                                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                        "application/vnd.oasis.opendocument.text",
+                                        "application/vnd.oasis.opendocument.spreadsheet",
+                                        "application/vnd.oasis.opendocument.presentation",
+                                        "application/vnd.ms-powerpoint",
+                                        "text/html",
+                                        "application/rtf",
                                         "application/msword",
                                         "application/vnd.ms-excel",
                                         "application/octet-stream"
@@ -1078,7 +1085,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 status = if (text.isBlank()) {
                     "اكتمل OCR لكن لم يتم التعرف على نص واضح. جرّب PDF أوضح."
                 } else {
-                    "اكتمل OCR العربي. راجع النص، خصوصًا الأرقام والتشكيل والجداول، قبل التصدير."
+                    "اكتمل OCR العربي والإنجليزي. راجع النص، خصوصًا الأرقام والتشكيل والجداول، قبل التصدير."
                 }
             } catch (e: Exception) {
                 status = "تعذر تنفيذ OCR: ${e.localizedMessage ?: "تحقق من أن ملف اللغة العربية مضمن في الإصدار."}"
@@ -1101,9 +1108,15 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 FileOutputStream(trainedData).use { output -> input.copyTo(output) }
             }
         }
+        val englishData = File(tessDataDir, "eng.traineddata")
+        if (!englishData.exists()) {
+            assets.open("tessdata/eng.traineddata").use { input ->
+                FileOutputStream(englishData).use { output -> input.copyTo(output) }
+            }
+        }
 
         val api = TessBaseAPI()
-        if (!api.init(filesDir.absolutePath, "ara")) {
+        if (!api.init(filesDir.absolutePath, "ara+eng")) {
             api.end()
             error("تعذر تهيئة محرك OCR العربي")
         }
@@ -1186,7 +1199,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
             try {
                 val text = withContext(Dispatchers.IO) { extractPdfText(bytes, password) }
                 extractedText = text
-                status = if (text.isBlank()) "تم فتح الملف لكن لم يُعثر على نص قابل للاستخراج." else "تم فتح ملف PDF بنجاح."
+                status = if (text.isBlank()) "لم يتم العثور على نص قابل للاستخراج؛ يمكن تجربة OCR العربي والإنجليزي." else "تم فتح ملف PDF بنجاح."
                 pendingPdfBytes = null
                 pdfPassword = ""
             } catch (e: Exception) {
@@ -1365,7 +1378,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                                     showPasswordDialog = true
                                     throw IllegalStateException("قد يكون ملف PDF محميًا بكلمة مرور. أدخل كلمة المرور للمتابعة.", e)
                                 }
-                                if (needsArabicOcr(directText)) {
+                                if (directText.isBlank() || needsArabicOcr(directText)) {
                                     usedAutomaticArabicOcr = true
                                     try {
                                         val ocrText = extractArabicOcr(uri)

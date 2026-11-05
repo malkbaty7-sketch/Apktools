@@ -50,7 +50,11 @@ jobs:
           curl --fail --location --retry 3 \
             https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/ara.traineddata \
             --output app/src/main/assets/tessdata/ara.traineddata
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/eng.traineddata \
+            --output app/src/main/assets/tessdata/eng.traineddata
           test -s app/src/main/assets/tessdata/ara.traineddata
+          test -s app/src/main/assets/tessdata/eng.traineddata
 
       - name: Run unit tests and build debug APK
         run: gradle testDebugUnitTest assembleDebug --stacktrace
