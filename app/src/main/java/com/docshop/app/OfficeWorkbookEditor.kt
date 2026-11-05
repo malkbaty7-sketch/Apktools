@@ -47,7 +47,7 @@ object OfficeWorkbookEditor {
             Regex("<calcPr\\b([^>]*)/?>")
         ) { match ->
             val attrs = match.groupValues[1]
-                .replace(Regex("""\s+(fullCalcOnLoad|forceFullCalc|calcMode)="[^"]*"""")) { "" }
+                .replace(Regex("""\s+(fullCalcOnLoad|forceFullCalc|calcMode)="[^"]*""")) { "" }
             "<calcPr$attrs fullCalcOnLoad=\"1\" forceFullCalc=\"1\" calcMode=\"auto\"/>"
         }.let { updated ->
             if (updated.contains("<calcPr")) updated
@@ -211,13 +211,13 @@ object OfficeWorkbookEditor {
     }
 
     private fun setCellType(attrs: String, value: String): String {
-        val cleaned = attrs.replace(Regex("""\s+t="[^"]*"""")) { "" }
+        val cleaned = attrs.replace(Regex("""\s+t="[^"]*""")) { "" }
         return if (value.startsWith("=") || isNumber(value)) cleaned
         else cleaned + " t=\"inlineStr\""
     }
 
     private fun attribute(attrs: String, name: String): String =
-        Regex("""(?:^|\s)$name="([^"]*)"""").find(attrs)?.groupValues?.get(1).orEmpty()
+        Regex("""(?:^|\s)$name="([^"]*)""").find(attrs)?.groupValues?.get(1).orEmpty()
 
     private fun columnIndex(reference: String): Int {
         var result = 0
