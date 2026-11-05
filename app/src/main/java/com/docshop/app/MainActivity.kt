@@ -775,7 +775,13 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
 
                         OutlinedTextField(
                             value = extractedText,
-                            onValueChange = { extractedText = it },
+                            onValueChange = {
+                                if (it != extractedText) {
+                                    previousTextEdit = extractedText
+                                    redoTextEdit = null
+                                    extractedText = it
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp),
                             enabled = !isBusy,
                             label = { Text("يمكنك تعديل النص المستخرج") },
@@ -1038,7 +1044,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                         }
 
                         Text(
-                            "تنبيه: OCR يستخرج النص من صفحات PDF المصوّرة ولا يحافظ على تخطيط الصفحة أو الجداول بدقة مضمونة. ملفات DOC القديمة وXLS القديمة وAccess غير مدعومة بعد.",
+                            "تنبيه: يدعم DocShop قراءة DOC وXLS القديمة وقواعد Access واستخراج بياناتها، لكن تعديلها وحفظها بنفس صيغها غير متاح بعد. تصدير Word وExcel ينشئ ملفًا جديدًا ولا يحافظ على كل تنسيقات المصدر أو صِيَغه. OCR قد يحتاج مراجعة يدوية للنص والجداول.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1150,6 +1156,8 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
     }
     private fun updateExcelCell(rowIndex: Int, columnIndex: Int, value: String) {
         previousExcelText = extractedText
+        previousTextEdit = extractedText
+        redoTextEdit = null
         val rows = extractedText.split('\n').toMutableList()
         while (rows.size <= rowIndex) rows.add("")
         val cells = rows[rowIndex].split('\t').toMutableList()
