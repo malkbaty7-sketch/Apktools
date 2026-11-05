@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
     private var pdfPassword by mutableStateOf("")
     private var pendingPdfBytes: ByteArray? = null
     private var selectedPdfUri: Uri? = null
+    private var originalXlsxBytes: ByteArray? = null
     private var pdfPageBitmap by mutableStateOf<Bitmap?>(null)
     private var pdfPageCount by mutableIntStateOf(0)
     private var pdfPageIndex by mutableIntStateOf(0)
@@ -316,11 +317,16 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 status = "جارٍ إنشاء ملف Excel..."
                 try {
                     withContext(Dispatchers.IO) {
-                        val xlsxBytes = OfficeDocumentWriter.createXlsx(extractedText)
+                        val sourceWorkbook = originalXlsxBytes
+                        val xlsxBytes = if (sourceWorkbook != null && selectedName.lowercase().endsWith(".xlsx")) {
+                            OfficeWorkbookEditor.updateXlsx(sourceWorkbook, extractedText)
+                        } else {
+                            OfficeDocumentWriter.createXlsx(extractedText)
+                        }
                         contentResolver.openOutputStream(uri)?.use { it.write(xlsxBytes) }
                             ?: error("تعذر فتح ملف الحفظ")
                     }
-                    status = "تم إنشاء ملف Excel جديد مع تمييز صف العناوين واتجاه من اليمين إلى اليسار ومرشح للجدول. القيم الرقمية تُحفظ كأرقام؛ الصيغ والتنسيقات الأصلية لا تنتقل."
+                    status = if (sourceWorkbook != null && selectedName.lowercase().endsWith(".xlsx")) "تم حفظ نسخة من ملف Excel الأصلي مع تحديث الخلايا المحددة والحفاظ على أوراق العمل والتنسيقات والعناصر الأخرى. الصيغ المعدلة يعيد Excel حسابها عند فتح الملف؛ لا يتم ضمان حسابها داخل DocShop." else "تم إنشاء ملف Excel جديد باتجاه من اليمين إلى اليسار. لا تنتقل الصيغ أو التنسيقات الأصلية عند إنشاء ملف جديد."
                 } catch (e: Exception) {
                     status = "فشل إنشاء Excel: ${e.localizedMessage ?: "خطأ غير معروف"}"
                 } finally { isBusy = false }
@@ -1199,6 +1205,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
         lifecycleScope.launch {
             pdfViewerStatus = "جارٍ تحميل الصفحة..."
             try {
+                var openedXlsxBytes: ByteArray? = null
                 val result = withContext(Dispatchers.IO) {
                     val file = File(cacheDir, "docshop-viewer.pdf")
                     contentResolver.openInputStream(uri)?.use { input ->
@@ -1333,8 +1340,11 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
 
                         lowerName.endsWith(".xlsx") ||
                             type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ->
-                            contentResolver.openInputStream(uri)?.use { readXlsx(it.readBytes()) }
-                                ?: error("تعذر فتح ملف Excel")
+                            contentResolver.openInputStream(uri)?.use { input ->
+                                val bytes = input.readBytes()
+                                openedXlsxBytes = bytes
+                                readXlsx(bytes)
+                            } ?: error("تعذر فتح ملف Excel")
 
                         lowerName.endsWith(".csv") || type.equals("text/csv", true) ->
                             contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { parseCsvToTabText(it.readText().removePrefix("\uFEFF")) }
@@ -1357,6 +1367,8 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                     }
                 }
                 extractedText = result
+                originalXlsxBytes = openedXlsxBytes
+                previousExcelText = null
                 previousTextEdit = null
                 redoTextEdit = null
                 status = if (result.isBlank()) {
