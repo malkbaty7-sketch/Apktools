@@ -10,8 +10,8 @@ android {
         applicationId = "com.docshop.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 41
-        versionName = "1.40.0"
+        versionCode = 42
+        versionName = "1.41.0"
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -33,5 +33,6 @@ dependencies {
     implementation("org.apache.poi:poi:5.2.5")
     implementation("org.apache.poi:poi-scratchpad:5.2.5")
     implementation("com.healthmarketscience.jackcess:jackcess:4.0.7")
+    testImplementation("junit:junit:4.13.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
