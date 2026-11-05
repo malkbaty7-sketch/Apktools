@@ -47,8 +47,8 @@ jobs:
             --output app/src/main/assets/tessdata/ara.traineddata
           test -s app/src/main/assets/tessdata/ara.traineddata
 
-      - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
+      - name: Run unit tests and build debug APK
+        run: gradle testDebugUnitTest assembleDebug --stacktrace
 
       - name: Upload APK artifact
         if: success()
