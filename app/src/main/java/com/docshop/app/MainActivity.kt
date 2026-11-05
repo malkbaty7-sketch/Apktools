@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
     private var pendingPdfBytes: ByteArray? = null
     private var selectedPdfUri: Uri? = null
     private var originalXlsxBytes: ByteArray? = null
+    private var originalDocxBytes: ByteArray? = null
     private var pdfPageBitmap by mutableStateOf<Bitmap?>(null)
     private var pdfPageCount by mutableIntStateOf(0)
     private var pdfPageIndex by mutableIntStateOf(0)
@@ -271,12 +272,18 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 isBusy = true
                 status = "جارٍ إنشاء ملف Word..."
                 try {
+                    val isUpdatingOriginalDocument = originalDocxBytes != null && selectedName.lowercase().endsWith(".docx")
                     withContext(Dispatchers.IO) {
-                        val docxBytes = OfficeDocumentWriter.createDocx(extractedText)
+                        val sourceDocument = originalDocxBytes
+                        val docxBytes = if (sourceDocument != null && selectedName.lowercase().endsWith(".docx")) {
+                            OfficeDocumentEditor.updateDocx(sourceDocument, extractedText)
+                        } else {
+                            OfficeDocumentWriter.createDocx(extractedText)
+                        }
                         contentResolver.openOutputStream(uri)?.use { it.write(docxBytes) }
                             ?: error("تعذر فتح ملف الحفظ")
                     }
-                    status = "تم إنشاء ملف Word جديد مع اتجاه عربي من اليمين إلى اليسار وخط مناسب. لا يتم الاحتفاظ بتنسيق الملف الأصلي أو عناصره المعقدة."
+                    status = if (isUpdatingOriginalDocument) "تم حفظ نسخة معدلة من مستند Word مع الإبقاء على بنية المستند والجداول والصور والرؤوس والتذييلات. قد يتبسط تنسيق المقاطع المتعددة داخل الفقرة المعدلة؛ راجع الملف الناتج." else "تم إنشاء ملف Word جديد باتجاه عربي من اليمين إلى اليسار، وتحويل الأسطر المفصولة بعلامات تبويب إلى جداول. لا تنتقل تنسيقات الملف الأصلي أو عناصره المعقدة."
                 } catch (e: Exception) {
                     status = "فشل إنشاء Word: ${e.localizedMessage ?: "خطأ غير معروف"}"
                 } finally { isBusy = false }
@@ -1207,6 +1214,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
             pdfViewerStatus = "جارٍ تحميل الصفحة..."
             try {
                 var openedXlsxBytes: ByteArray? = null
+                var openedDocxBytes: ByteArray? = null
                 val result = withContext(Dispatchers.IO) {
                     val file = File(cacheDir, "docshop-viewer.pdf")
                     contentResolver.openInputStream(uri)?.use { input ->
@@ -1336,8 +1344,11 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
 
                         lowerName.endsWith(".docx") ||
                             type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ->
-                            contentResolver.openInputStream(uri)?.use { readDocx(it.readBytes()) }
-                                ?: error("تعذر فتح ملف Word")
+                            contentResolver.openInputStream(uri)?.use { input ->
+                                val bytes = input.readBytes()
+                                openedDocxBytes = bytes
+                                readDocx(bytes)
+                            } ?: error("تعذر فتح ملف Word")
 
                         lowerName.endsWith(".xlsx") ||
                             type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ->
@@ -1369,6 +1380,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 }
                 extractedText = result
                 originalXlsxBytes = openedXlsxBytes
+                originalDocxBytes = openedDocxBytes
                 previousExcelText = null
                 previousTextEdit = null
                 redoTextEdit = null
