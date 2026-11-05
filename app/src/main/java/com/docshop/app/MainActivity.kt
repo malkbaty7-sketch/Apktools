@@ -1138,8 +1138,15 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
 
     private fun extractPdfText(bytes: ByteArray, password: String): String {
         PDDocument.load(ByteArrayInputStream(bytes), password).use { document ->
-            val stripper = PDFTextStripper()
-            stripper.sortByPosition = true
+            val stripper = PDFTextStripper().apply {
+                // Preserve the PDF content-stream order. Sorting Arabic glyphs by
+                // ascending X position can reverse RTL runs and scramble word order.
+                sortByPosition = false
+                wordSeparator = " "
+                lineSeparator = "\n"
+                paragraphStart = ""
+                paragraphEnd = "\n"
+            }
             return stripper.getText(document)
         }
     }
