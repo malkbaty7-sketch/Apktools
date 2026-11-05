@@ -316,6 +316,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 isBusy = true
                 status = "جارٍ إنشاء ملف Excel..."
                 try {
+                    val isUpdatingOriginalWorkbook = originalXlsxBytes != null && selectedName.lowercase().endsWith(".xlsx")
                     withContext(Dispatchers.IO) {
                         val sourceWorkbook = originalXlsxBytes
                         val xlsxBytes = if (sourceWorkbook != null && selectedName.lowercase().endsWith(".xlsx")) {
@@ -326,7 +327,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                         contentResolver.openOutputStream(uri)?.use { it.write(xlsxBytes) }
                             ?: error("تعذر فتح ملف الحفظ")
                     }
-                    status = if (sourceWorkbook != null && selectedName.lowercase().endsWith(".xlsx")) "تم حفظ نسخة من ملف Excel الأصلي مع تحديث الخلايا المحددة والحفاظ على أوراق العمل والتنسيقات والعناصر الأخرى. الصيغ المعدلة يعيد Excel حسابها عند فتح الملف؛ لا يتم ضمان حسابها داخل DocShop." else "تم إنشاء ملف Excel جديد باتجاه من اليمين إلى اليسار. لا تنتقل الصيغ أو التنسيقات الأصلية عند إنشاء ملف جديد."
+                    status = if (isUpdatingOriginalWorkbook) "تم حفظ نسخة من ملف Excel الأصلي مع تحديث الخلايا المحددة والحفاظ على أوراق العمل والتنسيقات والعناصر الأخرى. الصيغ المعدلة يعيد Excel حسابها عند فتح الملف؛ لا يتم ضمان حسابها داخل DocShop." else "تم إنشاء ملف Excel جديد باتجاه من اليمين إلى اليسار. لا تنتقل الصيغ أو التنسيقات الأصلية عند إنشاء ملف جديد."
                 } catch (e: Exception) {
                     status = "فشل إنشاء Excel: ${e.localizedMessage ?: "خطأ غير معروف"}"
                 } finally { isBusy = false }
