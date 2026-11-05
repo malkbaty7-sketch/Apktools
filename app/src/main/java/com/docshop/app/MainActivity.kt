@@ -271,19 +271,11 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 status = "جارٍ إنشاء ملف Word..."
                 try {
                     withContext(Dispatchers.IO) {
-                        val paragraphs = extractedText.split("\n").joinToString("") { line ->
-                            """<w:p><w:r><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>"""
-                        }
-                        val documentXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>$paragraphs<w:sectPr/></w:body></w:document>"""
-                        val output = contentResolver.openOutputStream(uri) ?: error("تعذر فتح ملف الحفظ")
-                        ZipOutputStream(output).use { zip ->
-                            writeZipText(zip, "[Content_Types].xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>""")
-                            writeZipText(zip, "_rels/.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>""")
-                            writeZipText(zip, "word/document.xml", documentXml)
-                        }
+                        val docxBytes = OfficeDocumentWriter.createDocx(extractedText)
+                        contentResolver.openOutputStream(uri)?.use { it.write(docxBytes) }
+                            ?: error("تعذر فتح ملف الحفظ")
                     }
-                    status = "تم إنشاء ملف Word. هذا تصدير للنص ولا يحافظ على تنسيق المصدر الأصلي."
+                    status = "تم إنشاء ملف Word جديد مع اتجاه عربي من اليمين إلى اليسار وخط مناسب. لا يتم الاحتفاظ بتنسيق الملف الأصلي أو عناصره المعقدة."
                 } catch (e: Exception) {
                     status = "فشل إنشاء Word: ${e.localizedMessage ?: "خطأ غير معروف"}"
                 } finally { isBusy = false }
@@ -324,28 +316,11 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 status = "جارٍ إنشاء ملف Excel..."
                 try {
                     withContext(Dispatchers.IO) {
-                        val rows = extractedText.lineSequence().map { line ->
-                            if (line.contains('\t')) line.split('\t') else listOf(line)
-                        }.toList()
-                        val sheetRows = rows.mapIndexed { rowIndex, cells ->
-                            val xmlCells = cells.mapIndexed { colIndex, value ->
-                                val ref = excelColumnName(colIndex + 1) + (rowIndex + 1)
-                                """<c r="$ref" t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>"""
-                            }.joinToString("")
-                            """<row r="${rowIndex + 1}">$xmlCells</row>"""
-                        }.joinToString("")
-                        val sheetXml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>$sheetRows</sheetData></worksheet>"""
-                        val output = contentResolver.openOutputStream(uri) ?: error("تعذر فتح ملف الحفظ")
-                        ZipOutputStream(output).use { zip ->
-                            writeZipText(zip, "[Content_Types].xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>""")
-                            writeZipText(zip, "_rels/.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>""")
-                            writeZipText(zip, "xl/workbook.xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="DocShop" sheetId="1" r:id="rId1"/></sheets></workbook>""")
-                            writeZipText(zip, "xl/_rels/workbook.xml.rels", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>""")
-                            writeZipText(zip, "xl/worksheets/sheet1.xml", sheetXml)
-                        }
+                        val xlsxBytes = OfficeDocumentWriter.createXlsx(extractedText)
+                        contentResolver.openOutputStream(uri)?.use { it.write(xlsxBytes) }
+                            ?: error("تعذر فتح ملف الحفظ")
                     }
-                    status = "تم إنشاء ملف XLSX. إذا كان المصدر PDF، فقد تحتاج الجداول إلى ترتيب يدوي لأن استخراج النص لا يحدد الأعمدة دائمًا."
+                    status = "تم إنشاء ملف Excel جديد مع تمييز صف العناوين واتجاه من اليمين إلى اليسار ومرشح للجدول. القيم الرقمية تُحفظ كأرقام؛ الصيغ والتنسيقات الأصلية لا تنتقل."
                 } catch (e: Exception) {
                     status = "فشل إنشاء Excel: ${e.localizedMessage ?: "خطأ غير معروف"}"
                 } finally { isBusy = false }
