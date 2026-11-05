@@ -272,10 +272,10 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 isBusy = true
                 status = "جارٍ إنشاء ملف Word..."
                 try {
-                    val isUpdatingOriginalDocument = originalDocxBytes != null && selectedName.lowercase().endsWith(".docx")
+                    val isUpdatingOriginalDocument = originalDocxBytes != null
                     withContext(Dispatchers.IO) {
                         val sourceDocument = originalDocxBytes
-                        val docxBytes = if (sourceDocument != null && selectedName.lowercase().endsWith(".docx")) {
+                        val docxBytes = if (sourceDocument != null) {
                             OfficeDocumentEditor.updateDocx(sourceDocument, extractedText)
                         } else {
                             OfficeDocumentWriter.createDocx(extractedText)
@@ -323,10 +323,10 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 isBusy = true
                 status = "جارٍ إنشاء ملف Excel..."
                 try {
-                    val isUpdatingOriginalWorkbook = originalXlsxBytes != null && selectedName.lowercase().endsWith(".xlsx")
+                    val isUpdatingOriginalWorkbook = originalXlsxBytes != null
                     withContext(Dispatchers.IO) {
                         val sourceWorkbook = originalXlsxBytes
-                        val xlsxBytes = if (sourceWorkbook != null && selectedName.lowercase().endsWith(".xlsx")) {
+                        val xlsxBytes = if (sourceWorkbook != null) {
                             OfficeWorkbookEditor.updateXlsx(sourceWorkbook, extractedText)
                         } else {
                             OfficeDocumentWriter.createXlsx(extractedText)
@@ -601,7 +601,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("معاينة جدول Excel", style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold)
-                                    Text("اضغط على أي خلية لتعديل قيمتها. التغييرات تطبق على البيانات المستخرجة ويمكن تصديرها كملف جديد؛ لا يتغير الملف الأصلي.",
+                                    Text("اضغط على أي خلية لتعديل قيمتها. عند التصدير تُحفظ نسخة من المصنف الأصلي مع أوراقه وتنسيقاته، ولا يتغير الملف الأصلي. الصيغ التي تعدلها يعيد Excel حسابها عند فتح النسخة.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.secondary)
                                     OutlinedButton(
