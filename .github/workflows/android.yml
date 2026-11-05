@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
 
+# Serialize builds so first-time debug-keystore cache creation cannot race.
+concurrency:
+  group: docshop-android-build
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
