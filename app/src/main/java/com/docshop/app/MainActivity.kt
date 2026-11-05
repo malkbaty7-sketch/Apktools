@@ -1441,103 +1441,11 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
         return out.toString().replace(Regex("[ \\t]+\\n"), "\n").trim()
     }
 
-    private fun readDocx(bytes: ByteArray): String {
-        val documentXml = readZipEntry(bytes, "word/document.xml")
-            ?: error("ملف DOCX غير صالح: لم يتم العثور على محتوى المستند")
-        val parser = Xml.newPullParser()
-        parser.setInput(StringReader(documentXml))
-        val output = StringBuilder()
-        var inTable = false
-        var inCell = false
-        var event = parser.eventType
-        while (event != XmlPullParser.END_DOCUMENT) {
-            when (event) {
-                XmlPullParser.START_TAG -> when (parser.name) {
-                    "tbl" -> inTable = true
-                    "tc" -> inCell = true
-                }
-                XmlPullParser.END_TAG -> when (parser.name) {
-                    "tc" -> {
-                        inCell = false
-                        output.append("\t")
-                    }
-                    "tr" -> {
-                        if (output.endsWith("\t")) output.setLength(output.length - 1)
-                        output.append("\n")
-                    }
-                    "p" -> if (!inTable || !inCell) output.append("\n") else output.append(" ")
-                    "tbl" -> {
-                        inTable = false
-                        if (output.isNotEmpty() && !output.endsWith("\n")) output.append("\n")
-                    }
-                }
-                XmlPullParser.TEXT -> output.append(parser.text)
-            }
-            event = parser.eventType
-            if (event != XmlPullParser.END_DOCUMENT) event = parser.next()
-        }
-        return output.toString().replace(Regex("[ \\t]+\\n"), "\n").trimEnd()
-    }
+    private fun readDocx(bytes: ByteArray): String =
+        OfficeDocumentReader.readDocx(bytes)
 
-    private fun readXlsx(bytes: ByteArray): String {
-        val sharedStringsXml = readZipEntry(bytes, "xl/sharedStrings.xml")
-        val sharedStrings = if (sharedStringsXml != null) parseSharedStrings(sharedStringsXml) else emptyList()
-        val sheetXml = readZipEntry(bytes, "xl/worksheets/sheet1.xml")
-            ?: error("لم يتم العثور على ورقة العمل الأولى في ملف XLSX")
-        val parser = Xml.newPullParser()
-        parser.setInput(StringReader(sheetXml))
-        val output = StringBuilder()
-        var inRow = false
-        var inValue = false
-        var inInlineText = false
-        var cellRef = ""
-        var cellType = ""
-        var cellValue = StringBuilder()
-        var rowCells = sortedMapOf<Int, String>()
-        var event = parser.eventType
-
-        while (event != XmlPullParser.END_DOCUMENT) {
-            when (event) {
-                XmlPullParser.START_TAG -> when (parser.name) {
-                    "row" -> { inRow = true; rowCells = sortedMapOf() }
-                    "c" -> {
-                        cellRef = parser.getAttributeValue(null, "r") ?: ""
-                        cellType = parser.getAttributeValue(null, "t") ?: ""
-                        cellValue = StringBuilder()
-                    }
-                    "v" -> inValue = true
-                    "t" -> if (cellType == "inlineStr") inInlineText = true
-                }
-                XmlPullParser.TEXT -> if (inValue || inInlineText) cellValue.append(parser.text)
-                XmlPullParser.END_TAG -> when (parser.name) {
-                    "v" -> inValue = false
-                    "t" -> inInlineText = false
-                    "c" -> {
-                        val raw = cellValue.toString()
-                        val value = if (cellType == "s") {
-                            sharedStrings.getOrNull(raw.toIntOrNull() ?: -1).orEmpty()
-                        } else raw
-                        val column = columnIndex(cellRef)
-                        if (column >= 0) rowCells[column] = value
-                    }
-                    "row" -> if (inRow) {
-                        val maxColumn = rowCells.keys.maxOrNull() ?: -1
-                        if (maxColumn >= 0) {
-                            for (column in 0..maxColumn) {
-                                if (column > 0) output.append('\t')
-                                output.append(rowCells[column].orEmpty())
-                            }
-                        }
-                        output.append('\n')
-                        inRow = false
-                    }
-                }
-            }
-            event = parser.eventType
-            if (event != XmlPullParser.END_DOCUMENT) event = parser.next()
-        }
-        return output.toString().trimEnd()
-    }
+    private fun readXlsx(bytes: ByteArray): String =
+        OfficeDocumentReader.readXlsx(bytes)
 
     private fun parseCsvToTabText(csv: String): String {
         val rows = mutableListOf<String>()
