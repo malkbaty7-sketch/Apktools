@@ -1213,8 +1213,6 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
         lifecycleScope.launch {
             pdfViewerStatus = "جارٍ تحميل الصفحة..."
             try {
-                var openedXlsxBytes: ByteArray? = null
-                var openedDocxBytes: ByteArray? = null
                 val result = withContext(Dispatchers.IO) {
                     val file = File(cacheDir, "docshop-viewer.pdf")
                     contentResolver.openInputStream(uri)?.use { input ->
@@ -1313,6 +1311,8 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
             isBusy = true
             status = "جارٍ قراءة الملف..."
             try {
+                var openedXlsxBytes: ByteArray? = null
+                var openedDocxBytes: ByteArray? = null
                 val result = withContext(Dispatchers.IO) {
                     val type = contentResolver.getType(uri).orEmpty()
                     val name = queryDisplayName(uri).orEmpty()
