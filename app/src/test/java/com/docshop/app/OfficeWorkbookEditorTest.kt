@@ -65,6 +65,27 @@ class OfficeWorkbookEditorTest {
         assertTrue(entries.containsKey("word/styles.xml"))
     }
 
+    @Test
+    fun savingWorkbookWithoutChangesDoesNotFailOrDropParts() {
+        val original = fixtureWorkbook()
+        val unchanged = """
+            【Summary】
+            عنوان\t5
+            5
+
+            【Data】
+            الاسم\tالقيمة
+            علي\t10
+        """.trimIndent().replace("\\t", "\t")
+
+        val result = OfficeWorkbookEditor.updateXlsx(original, unchanged)
+        val entries = unzip(result)
+
+        assertTrue(entries.containsKey("xl/worksheets/sheet1.xml"))
+        assertTrue(entries.containsKey("xl/worksheets/sheet2.xml"))
+        assertTrue(entries.getValue("xl/worksheets/sheet1.xml").contains("<f>SUM(B1:B1)</f>"))
+    }
+
     private fun docxFixture(): ByteArray {
         val output = ByteArrayOutputStream()
         ZipOutputStream(output).use { zip ->
