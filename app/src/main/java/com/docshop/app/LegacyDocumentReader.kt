@@ -5,10 +5,16 @@ import org.apache.poi.hwpf.HWPFDocument
 import org.apache.poi.hwpf.extractor.WordExtractor
 import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import org.apache.poi.hssf.extractor.ExcelExtractor
+import org.apache.poi.hslf.usermodel.HSLFSlideShow
+import org.apache.poi.sl.extractor.SlideShowExtractor
 import java.io.File
 import java.io.InputStream
 
 object LegacyDocumentReader {
+    fun readPpt(input: InputStream): String = HSLFSlideShow(input).use { slideshow ->
+        SlideShowExtractor(slideshow).use { extractor -> extractor.text }
+    }
+
     fun readDoc(input: InputStream): String = HWPFDocument(input).use { doc ->
         WordExtractor(doc).use { it.text }
     }

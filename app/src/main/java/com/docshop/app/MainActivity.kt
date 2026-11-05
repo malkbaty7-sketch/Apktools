@@ -1113,7 +1113,8 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                     val pages = mutableListOf<String>()
                     for (index in 0 until renderer.pageCount) {
                         renderer.openPage(index).use { page ->
-                            val targetWidth = 1600
+                            // Render close to 300 DPI to preserve Arabic dots and diacritics.
+                            val targetWidth = 2200
                             val scale = targetWidth.toFloat() / page.width.toFloat()
                             val targetHeight = (page.height * scale).toInt().coerceAtLeast(1)
                             val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
@@ -1141,10 +1142,27 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
         val latin = text.count { it in 'A'..'Z' || it in 'a'..'z' }
         val letters = arabic + latin
         if (text.isBlank() || arabic < 20 || letters < 80) return false
-        val latinRatio = latin.toFloat() / letters.toFloat()
+
+        val presentationForms = text.count { it in '\uFB50'..'\uFDFF' || it in '\uFE70'..'\uFEFF' }
+        val privateUse = text.count { it in '\uE000'..'\uF8FF' }
         val replacementChars = text.count { it == '\uFFFD' }
         val suspiciousMarks = text.count { it in '\u200B'..'\u200F' || it in '\u202A'..'\u202E' }
-        return latinRatio > 0.12f || replacementChars >= 3 || suspiciousMarks > 12
+        val latinRatio = latin.toFloat() / letters.toFloat()
+        val arabicWords = Regex("[\\u0621-\\u064A\\u066E-\\u06D3]{2,}")
+            .findAll(text).map { it.value }.toList()
+        val commonArabic = setOf(
+            "من", "في", "على", "إلى", "الى", "عن", "أن", "إن", "كان", "كانت",
+            "هذا", "هذه", "الذي", "التي", "ما", "لا", "لم", "لن", "قد", "هو",
+            "هي", "مع", "ثم", "بعد", "قبل", "كما", "كل", "بين", "عند", "أو",
+            "قال", "الله", "الرحمن", "الرحيم", "يا", "أيها", "الذين", "علي"
+        )
+        val commonCount = arabicWords.count { it in commonArabic }
+        val weakLanguageSignal = arabicWords.size >= 45 &&
+            commonCount.toFloat() / arabicWords.size.toFloat() < 0.025f
+        return latinRatio > 0.12f || replacementChars >= 3 ||
+            suspiciousMarks > 12 || privateUse > 0 ||
+            presentationForms.toFloat() / arabic.coerceAtLeast(1) > 0.025f ||
+            weakLanguageSignal
     }
 
     private fun extractPdfText(bytes: ByteArray, password: String): String {
@@ -1331,6 +1349,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 var openedXlsxBytes: ByteArray? = null
                 var openedDocxBytes: ByteArray? = null
                 var usedAutomaticArabicOcr = false
+                var automaticOcrWarning = false
                 val result = withContext(Dispatchers.IO) {
                     val type = contentResolver.getType(uri).orEmpty()
                     val name = queryDisplayName(uri).orEmpty()
@@ -1348,8 +1367,16 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                                 }
                                 if (needsArabicOcr(directText)) {
                                     usedAutomaticArabicOcr = true
-                                    val ocrText = extractArabicOcr(uri)
-                                    if (ocrText.isNotBlank()) ocrText else directText
+                                    try {
+                                        val ocrText = extractArabicOcr(uri)
+                                        if (ocrText.isNotBlank()) ocrText else {
+                                            automaticOcrWarning = true
+                                            directText
+                                        }
+                                    } catch (_: Exception) {
+                                        automaticOcrWarning = true
+                                        directText
+                                    }
                                 } else {
                                     directText
                                 }
@@ -1366,6 +1393,24 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                         lowerName.endsWith(".mdb") || lowerName.endsWith(".accdb") ->
                             contentResolver.openInputStream(uri)?.use { LegacyDocumentReader.readAccess(it, cacheDir) }
                                 ?: error("تعذر فتح قاعدة Access")
+
+                        lowerName.endsWith(".pptx") ||
+                            type == "application/vnd.openxmlformats-officedocument.presentationml.presentation" ->
+                            contentResolver.openInputStream(uri)?.use { PresentationDocumentReader.readPptx(it.readBytes()) }
+                                ?: error("تعذر فتح عرض PowerPoint")
+
+                        lowerName.endsWith(".ppt") || type.equals("application/vnd.ms-powerpoint", true) ->
+                            contentResolver.openInputStream(uri)?.use { LegacyDocumentReader.readPpt(it) }
+                                ?: error("تعذر فتح عرض PowerPoint القديم")
+
+                        lowerName.endsWith(".odt") || lowerName.endsWith(".ods") || lowerName.endsWith(".odp") ->
+                            contentResolver.openInputStream(uri)?.use { OpenDocumentReader.read(it.readBytes()) }
+                                ?: error("تعذر فتح مستند OpenDocument")
+
+                        lowerName.endsWith(".html") || lowerName.endsWith(".htm") || type.equals("text/html", true) ->
+                            contentResolver.openInputStream(uri)?.use {
+                                android.text.Html.fromHtml(TextFileDecoder.decode(it.readBytes()), android.text.Html.FROM_HTML_MODE_LEGACY).toString()
+                            } ?: error("تعذر فتح ملف HTML")
 
                         lowerName.endsWith(".docx") ||
                             type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ->
@@ -1384,23 +1429,23 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                             } ?: error("تعذر فتح ملف Excel")
 
                         lowerName.endsWith(".csv") || type.equals("text/csv", true) ->
-                            contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { parseCsvToTabText(it.readText().removePrefix("\uFEFF")) }
+                            contentResolver.openInputStream(uri)?.use { parseCsvToTabText(TextFileDecoder.decode(it.readBytes()).removePrefix("\uFEFF")) }
                                 ?: error("تعذر فتح ملف CSV")
 
                         lowerName.endsWith(".rtf") || type.equals("application/rtf", true) ->
-                            contentResolver.openInputStream(uri)?.bufferedReader(Charsets.ISO_8859_1)?.use { readRtf(it.readText()) }
+                            contentResolver.openInputStream(uri)?.use { readRtf(it.readBytes().toString(Charsets.ISO_8859_1)) }
                                 ?: error("تعذر قراءة ملف RTF")
 
                         lowerName.endsWith(".md") || lowerName.endsWith(".markdown") ||
                             type.equals("text/markdown", true) ->
-                            contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                            contentResolver.openInputStream(uri)?.use { TextFileDecoder.decode(it.readBytes()) }
                                 ?: error("تعذر فتح ملف Markdown")
 
                         lowerName.endsWith(".txt") || type.equals("text/plain", true) ->
-                            contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+                            contentResolver.openInputStream(uri)?.use { TextFileDecoder.decode(it.readBytes()) }
                                 ?: error("تعذر فتح الملف النصي")
 
-                        else -> error("الصيغة غير مدعومة بعد. جرّب PDF أو DOC/DOCX أو XLS/XLSX أو MDB/ACCDB أو CSV أو TXT أو Markdown.")
+                        else -> error("الصيغة غير مدعومة بعد. الصيغ المدعومة تشمل PDF وDOC/DOCX وXLS/XLSX وPPT/PPTX وODT/ODS/ODP وMDB/ACCDB وCSV وRTF وHTML وTXT وMarkdown.")
                     }
                 }
                 extractedText = result
@@ -1411,8 +1456,10 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
                 redoTextEdit = null
                 status = if (result.isBlank()) {
                     "لم يُعثر على نص. قد يكون الملف فارغًا أو يحتوي على صور فقط."
+                } else if (usedAutomaticArabicOcr && automaticOcrWarning) {
+                    "اكتُشف احتمال تلف النص العربي لكن تعذر OCR؛ أُبقي النص الأصلي. تحقق من تضمين بيانات اللغة العربية ara.traineddata."
                 } else if (usedAutomaticArabicOcr) {
-                    "اكتُشف احتمال تلف ترميز النص العربي؛ نُفّذ OCR العربي تلقائيًا. راجع الأرقام والتشكيل والجداول."
+                    "اكتُشف احتمال تلف ترميز النص العربي واستُخدم OCR العربي تلقائيًا. راجع الأرقام والتشكيل والجداول."
                 } else {
                     "تم استخراج النص. راجعه قبل حفظ نسخة TXT."
                 }
@@ -1424,57 +1471,7 @@ body { font-family: sans-serif; margin: 24px; line-height: 1.8; direction: rtl; 
         }
     }
 
-    private fun readRtf(rtf: String): String {
-        require(rtf.trimStart().startsWith("{\\rtf")) { "ملف RTF غير صالح" }
-        val out = StringBuilder()
-        var i = 0
-        var skip = false
-        val groups = mutableListOf<Boolean>()
-        while (i < rtf.length) {
-            val ch = rtf[i]
-            when {
-                ch == '{' -> {
-                    groups.add(skip)
-                    if (i + 1 < rtf.length && rtf[i + 1] == '\\') {
-                        val start = i + 2
-                        val end = rtf.indexOfAny(charArrayOf(' ', '\\', '{', '}'), start).let { if (it < 0) rtf.length else it }
-                        if (rtf.substring(start, end) in setOf("fonttbl", "colortbl", "stylesheet", "info", "pict", "object", "header", "footer")) skip = true
-                    }
-                    i++
-                }
-                ch == '}' -> { skip = groups.removeLastOrNull() ?: false; i++ }
-                ch == '\\' && i + 1 < rtf.length -> {
-                    val n = rtf[i + 1]
-                    when {
-                        n == '\\' || n == '{' || n == '}' -> { if (!skip) out.append(n); i += 2 }
-                        n == '\'' && i + 3 < rtf.length -> { if (!skip) out.append(rtf.substring(i + 2, i + 4).toIntOrNull(16)?.toChar() ?: ' '); i += 4 }
-                        n.isLetter() -> {
-                            var j = i + 1
-                            while (j < rtf.length && rtf[j].isLetter()) j++
-                            val word = rtf.substring(i + 1, j)
-                            var k = j
-                            if (k < rtf.length && (rtf[k] == '-' || rtf[k].isDigit())) {
-                                if (rtf[k] == '-') k++
-                                while (k < rtf.length && rtf[k].isDigit()) k++
-                            }
-                            val p = rtf.substring(j, k).toIntOrNull()
-                            if (!skip) when (word) {
-                                "par", "line" -> out.append('\n')
-                                "tab" -> out.append('\t')
-                                "u" -> p?.let { out.append(it.toShort().toInt().toChar()) }
-                            }
-                            i = if (k < rtf.length && rtf[k] == ' ') k + 1 else k
-                        }
-                        else -> i += 2
-                    }
-                }
-                !skip && (ch == '\r' || ch == '\n') -> i++
-                !skip -> { out.append(ch); i++ }
-                else -> i++
-            }
-        }
-        return out.toString().replace(Regex("[ \\t]+\\n"), "\n").trim()
-    }
+    private fun readRtf(rtf: String): String = RtfTextExtractor.extract(rtf)
 
     private fun readDocx(bytes: ByteArray): String =
         OfficeDocumentReader.readDocx(bytes)
