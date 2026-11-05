@@ -55,7 +55,7 @@ class OfficeWorkbookEditorTest {
     @Test
     fun editsDocxParagraphsAndTableCellsWithoutDroppingPackageParts() {
         val original = docxFixture()
-        val result = OfficeDocumentEditor.updateDocx(original, "فقرة جديدة\\nخلية 1\\tخلية 2")
+        val result = OfficeDocumentEditor.updateDocx(original, "فقرة جديدة\nخلية 1\tخلية 2")
         val entries = unzip(result)
         val document = entries.getValue("word/document.xml")
         assertTrue(document.contains("فقرة جديدة"))
