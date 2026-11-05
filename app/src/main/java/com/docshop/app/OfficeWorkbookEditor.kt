@@ -217,7 +217,7 @@ object OfficeWorkbookEditor {
     }
 
     private fun attribute(attrs: String, name: String): String =
-        Regex("""(?:^|\s)$name="([^"]*)"""" ).find(attrs)?.groupValues?.get(1).orEmpty()
+        Regex("""(?:^|\s)(?:[A-Za-z_][\w.-]*:)?$name="([^"]*)"""" ).find(attrs)?.groupValues?.get(1).orEmpty()
 
     private fun columnIndex(reference: String): Int {
         var result = 0
