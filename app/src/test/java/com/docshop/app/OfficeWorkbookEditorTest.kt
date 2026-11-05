@@ -52,6 +52,28 @@ class OfficeWorkbookEditorTest {
         assertTrue(sheet.contains("<f>SUM(B1:B1)</f>"))
     }
 
+    @Test
+    fun editsDocxParagraphsAndTableCellsWithoutDroppingPackageParts() {
+        val original = docxFixture()
+        val result = OfficeDocumentEditor.updateDocx(original, "فقرة جديدة\\nخلية 1\\tخلية 2")
+        val entries = unzip(result)
+        val document = entries.getValue("word/document.xml")
+        assertTrue(document.contains("فقرة جديدة"))
+        assertTrue(document.contains("خلية 1"))
+        assertTrue(document.contains("خلية 2"))
+        assertTrue(document.contains("<w:b/>"))
+        assertTrue(entries.containsKey("word/styles.xml"))
+    }
+
+    private fun docxFixture(): ByteArray {
+        val output = ByteArrayOutputStream()
+        ZipOutputStream(output).use { zip ->
+            zip.add("word/document.xml", """<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:b/></w:pPr><w:r><w:t>قديم</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>أ</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>ب</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:sectPr/></w:body></w:document>""")
+            zip.add("word/styles.xml", "<w:styles/>")
+        }
+        return output.toByteArray()
+    }
+
     private fun fixtureWorkbook(): ByteArray {
         val output = ByteArrayOutputStream()
         ZipOutputStream(output).use { zip ->
